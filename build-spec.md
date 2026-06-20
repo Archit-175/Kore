@@ -86,12 +86,28 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 - Drag-to-reorder blocks ✅
 - Page mentions and backlinks ✅
 - Page icons, image/file upload, trash/restore ✅
-- **Databases** with **Table** and **Board (Kanban)** views → **Phase 4**
-- Database properties: status, tags/select, date, person → **Phase 4**
+- **Databases** with **Table** and **Board (Kanban)** views → ✅ **Phase 4**
+- Database properties: status, single/multi-select, date, person → member → ✅ **Phase 4**
 
 > Per-project BlockNote pages bound to the Phase-1 Yjs layer (`doc_type='page'`), nested tree
 > with drag-reparent, `@`-mentions + a derived `page_links` backlink graph, member trash/restore
 > (owner permanent-delete). Verified via the two-browser ritual.
+
+### 4.3a Databases (Notion) — ✅ COMPLETE (Phase 4, verified)
+- Per-project standalone databases (`/p/[projectId]/db/[databaseId]`) **and** an inline embed
+  inside Docs pages ✅
+- **Table view** (frozen title column, sticky header, inline per-type cell editors) ✅
+- **Board (Kanban) view** — columns from a status/select property + a "No value" column;
+  native-HTML5 drag between columns ✅
+- **Multiple saved views** (Table/Board tabs) with per-view card order ✅
+- Flexible **JSONB** properties: title, text, single-select, multi-select, status, date,
+  person→member (multi) ✅
+- Member CRUD; owner-only permanent delete + empty-trash ✅
+
+> Plain structured rows on **Supabase Postgres Changes** (NOT Yjs), mirroring Notes. `data jsonb`
+> keyed by property id; `database_views` for tabs; concurrency-safe single-cell writes via
+> targeted-jsonb RPCs. Inline embed = a `databaseEmbed` BlockNote block (`selectable:false`)
+> that mounts the same `DatabaseView`. Verified via the two-browser ritual.
 
 ### 4.4 Whiteboard (Excalidraw)
 - Infinite canvas: shapes, arrows, freehand, text, sticky notes, connectors
@@ -135,8 +151,13 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 - **note_checklist_items** ✅ — `id`, `note_id`, `workspace_id`, `text`, `checked`, `position`
 - **labels** ✅ + **note_labels** ✅ (join) — both `workspace_id`-scoped; labels are workspace-wide shared
 - **pages** — `id`, `project_id`, `parent_page_id`, `title`, `icon` (Yjs state lives in **yjs_documents**, `doc_type='page'`)
-- **databases** — `id`, `project_id`, `name`, `view_type`
-- **database_rows** + **database_properties**
+- **databases** ✅ — `id`, `workspace_id`, `project_id`, `name`, `icon`, `sort`, `trashed_at`,
+  `created_by` (one per project; Table/Board tabs live in **database_views**, NOT a `view_type` column)
+- **database_properties** ✅ — column defs: `type` (title/text/select/multi_select/status/date/person)
+  + `options` jsonb (`{id,name,color}` for the select-likes), `sort`
+- **database_views** ✅ — saved Table/Board tabs: `type`, `group_property_id` (board grouping), `sort`, `config`
+- **database_rows** ✅ — `data` jsonb keyed by property id (cell values) + `sort` (global) +
+  `view_order` jsonb (per-view order overrides)
 - **whiteboards** — `id`, `project_id`, `title` (Yjs state lives in **yjs_documents**, `doc_type='whiteboard'`)
 - **comments** — `id`, `target_type`, `target_id`, `author_id`, `body`, `parent_id`
 - **messages** — `id`, `workspace_id`, `author_id`, `body`, `parent_message_id` (null = top-level, set = thread reply), `edited_at`, `created_at`
@@ -152,8 +173,10 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 1. **Foundation** — ✅ **COMPLETE & VERIFIED.** Supabase setup, Auth (email + Google), workspace/teams/projects, memberships + roles (owner/editor) with RLS, Yjs ↔ Supabase Realtime sync layer + presence, responsive app shell (sidebar, search placeholder, dark mode), favorites/recents.
 2. **Notes module** — ✅ **COMPLETE & VERIFIED.** cards, colors, labels, pin, checklists, image upload, archive/trash, grid/list toggle; workspace-wide board with Postgres-Changes realtime.
 3. **Docs + block editor** — ✅ **COMPLETE & VERIFIED.** BlockNote integration, nested pages, slash commands, drag-reorder, mentions/backlinks, trash/restore, page icons, image upload
-4. **Databases** — ⬅️ **NEXT.** table view, board (kanban) view, properties
-5. **Whiteboard** — Excalidraw canvas, real-time collab, embed-in-page, export
+4. **Databases** — ✅ **COMPLETE & VERIFIED.** Table + Board (Kanban) views, multiple saved
+   views, JSONB flexible properties (title/text, status, single/multi-select, date, person→member),
+   native-HTML5 drag between board columns, inline embed in Docs pages; Postgres-Changes realtime.
+5. **Whiteboard** — ⬅️ **NEXT.** Excalidraw canvas, real-time collab, embed-in-page, export
 6. **Glue & polish** — comments + mentions, team chat (global channel + threads + reactions), activity feed, global search refinement, mobile QA
 
 ---
@@ -176,6 +199,6 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 
 ---
 
-*End of spec. **Phases 1 & 2 are complete & verified** — start the next session at Phase 3 (Docs + BlockNote).
+*End of spec. **Phases 1–4 are complete & verified** — start the next session at Phase 5 (Whiteboard / Excalidraw).
 See `CLAUDE.md` for the locked stack, folder structure, RLS convention, and the
 two-browser realtime test ritual.*

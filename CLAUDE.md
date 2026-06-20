@@ -23,8 +23,12 @@ Yjs↔Realtime sync layer, presence, and the app shell. Phase 2 (Notes) is compl
 workspace-wide `/notes` board (colors, labels, pin, checklists, image attachments,
 archive/trash, grid/list). Phase 3 (Docs) is complete: per-project BlockNote pages
 (nested tree, slash commands, drag-reorder, callout/divider/toggle, @-mentions + backlinks,
-trash/restore, page icons, image upload) on the Phase-1 Yjs layer. **Next = Phase 4
-(Databases — Table + Board views, properties).**
+trash/restore, page icons, image upload) on the Phase-1 Yjs layer. Phase 4 (Databases) is
+complete: per-project databases with **Table + Board (Kanban) views**, multiple saved views,
+flexible JSONB properties (title/text, status, single/multi-select, date, person→member),
+native-HTML5 drag between board columns, and an inline database embed inside Docs pages —
+all on Supabase Postgres Changes (NOT Yjs). **Next = Phase 5 (Whiteboard — Excalidraw:
+infinite canvas, real-time collab, embed-in-page, export).**
 
 ## Resolved product decisions (Phase 1)
 
@@ -97,6 +101,49 @@ trash/restore, page icons, image upload) on the Phase-1 Yjs layer. **Next = Phas
   "Connecting". All postgres_changes channels also carry a per-mount `useId()` suffix so
   navigation never reuses a still-closing channel (page-doc-view's was workspace-constant).
 
+## Resolved product decisions (Phase 4 — Databases)
+
+- **Scope:** databases are **per-project** standalone entities at `/p/[projectId]/db/[databaseId]`
+  (sidebar list + a section on the project Docs home), **AND** an inline embed inside Docs pages.
+  Plain structured rows on **Supabase Postgres Changes** (NOT Yjs) — the notes pattern.
+- **JSONB storage:** `database_rows.data jsonb` keyed by **property id** (no EAV). Property defs
+  live in `database_properties` (`type` ∈ title/text/select/multi_select/status/date/person,
+  plus an `options` jsonb of `{id,name,color}` for the select-likes). `person` cells store an
+  **array** of member user ids (resolved to profiles via the members pattern).
+- **Multiple saved views:** `database_views` (one row per Table/Board tab; `group_property_id`
+  picks the board's grouping column). Per-view card order = a global `database_rows.sort`
+  (double) + a sparse `view_order jsonb` ({viewId:number}); effective order =
+  `view_order[viewId] ?? sort`, sorted in JS. A drag = one narrow UPDATE on the dragged row.
+- **Board (Kanban):** columns derive from a status/select property's options (+ a leading
+  "No <prop>" column for blanks); native-HTML5 drag (no @dnd-kit, mirrors the page tree). A
+  cross-column drop sets the group cell **and** the view order in one RPC; tie ranks reseed.
+- **Concurrency-safe cell writes:** a row's cells share one `data` jsonb, so single-cell writes
+  go through SECURITY-INVOKER RPCs doing TARGETED jsonb writes (`db_set_cell` /
+  `db_set_row_group` / `db_set_view_order`; `db_strip_property`/`db_strip_view_order` clean
+  orphan keys on column/view delete) — concurrent edits to distinct keys merge, never clobber.
+- **DAL/RLS:** actions in `lib/actions/databases.ts` are DAL-gated, stamp workspace_id/created_by,
+  return `{ error }`, **skip `revalidatePath`** (DatabaseView + sidebar own realtime + optimistic
+  state). Member CRUD on all 4 tables; only the whole-database **permanent delete + empty-trash
+  are owner-only** (trashing a database is a member UPDATE; rows are member hard-deletes).
+  Server actions re-resolve the property/row server-side (IDOR guard) and validate person ids.
+- **Realtime:** DatabaseView subscribes to `databases` (filter `id=eq.{db}`) +
+  `database_properties`/`database_views`/`database_rows` (filter `database_id=eq.{db}`), one
+  channel per mount with a `useId()` suffix, `await setAuth` before `subscribe`, 300ms debounced
+  `loadDatabase` refetch. Active view is per-client (localStorage), not synced.
+- **Inline embed:** a BlockNote custom block `databaseEmbed` (`createReactBlockSpec`,
+  `content:'none'`, **`meta:{ selectable:false }`** so ProseMirror can't node-select/delete it
+  or hijack its clicks/drag) stores ONLY a `databaseId` and mounts the same `<DatabaseView embedded>`;
+  context (`DatabaseEmbedContext`) carries workspace/project into the block. **Dropped BlockNote's
+  built-in `table` block** from the schema (its TableHandles extension threw on the embed's own
+  `<table>`). The embed's `<table>` still inherits `.ProseMirror table/th` CSS, so
+  `app/globals.css` re-asserts `.kore-db-table { overflow:visible; table-layout:auto }` +
+  `.kore-db-table .sticky { position:sticky !important }` (else the sticky header/frozen column break).
+- **Dropdowns/popovers:** a portal-to-`document.body`, viewport-CLAMPED popover (`components/databases/shared.tsx`)
+  — table/board scroll containers would otherwise clip an absolute menu, and an align=right menu
+  near the left edge rendered off-screen. Cell triggers are `<div role="button">` (a `<button>`
+  can't contain the chips' remove-`<button>`s — hydration error). Table sticky header + frozen
+  title column need **`border-separate`** (Chrome drops sticky under `border-collapse`).
+
 ## Next.js 16 gotchas (this is NOT the Next.js in your training data)
 
 - `middleware.ts` is renamed to **`proxy.ts`** (repo root, `export function proxy`,
@@ -117,7 +164,11 @@ in `supabase/migrations/`: `20260620090000_init.sql` (schema, RLS, triggers, RPC
 `…_invite_existing_users.sql` (`invite_member`) + `…_join_requests.sql` (request-to-join,
 `request_access`/`my_membership_status`, `requested` status) + `…120000_notes.sql` (notes
 tables, RLS, `supabase_realtime` publication + `replica identity full`, `empty_trash`,
-`storage.objects` policies for `note-attachments`). Never write inline SQL in chat — add a
+`storage.objects` policies for `note-attachments`) + `…130000_pages.sql` (pages tree +
+`page_links`, `page_subtree_ids`, yjs snapshot purge) + `…140000_databases.sql` (databases /
+database_properties / database_views / database_rows — JSONB props, member-CRUD/owner-delete
+RLS, realtime publication + replica identity full, the jsonb-partial-update RPCs, and
+`empty_database_trash`). Never write inline SQL in chat — add a
 new timestamped migration file. **New tables created in a later migration need an explicit
 `grant … to authenticated`** (init's blanket grant was a one-time snapshot).
 
@@ -146,16 +197,21 @@ app/
   login | signup              public auth pages
   auth/callback/route.ts      OAuth / email-confirmation code exchange
   (onboarding)/               authed but no membership: setup, request-access
-  (app)/                      authed + member: home, t/[teamId], p/[projectId], members, notes
+  (app)/                      authed + member: home, t/[teamId], members, notes,
+                              p/[projectId] (Docs home), p/[projectId]/[pageId] (page editor),
+                              p/[projectId]/db/[databaseId] (database — Table/Board)
 lib/
   supabase/ client|server|proxy.ts
   dal.ts                      verifySession / requireMember / requireOwner / getPresenceUser
-  actions/ auth.ts | workspace.ts | notes.ts     server actions
+  actions/ auth.ts | workspace.ts | notes.ts | pages.ts | databases.ts   server actions
   yjs/ provider | awareness | snapshot | use-kore-ydoc | encoding
   notes/ colors | types | load-board     notes board data + palette + aggregate types
+  docs/ tree | types | load-pages        pages tree helpers (midpointSort) + loaders
+  databases/ types | colors | ordering | load-database   db aggregate + option palette + per-view order
   storage.ts                  uploadFile / getSignedUrl(s) / deleteFile (ADR 0001 seam)
   presence.ts | use-workspace-presence.ts
-components/ auth | onboarding | members | shell | collab | notes + theme-provider/-toggle
+components/ auth | onboarding | members | shell | collab | notes | docs | databases
+            + theme-provider/-toggle  (docs = BlockNote editor + databaseEmbed; databases = DatabaseView/Table/Board/cells)
 supabase/migrations/          the schema + RLS migration(s)
 types/database.ts             regenerate: supabase gen types typescript --linked > types/database.ts
 ```
@@ -179,6 +235,10 @@ server-only — never `NEXT_PUBLIC_`). Set all three in `.env.local` and in Verc
 6. **(Phase 2)** Storage → New bucket → **`note-attachments`**, **private**, 5 MB limit
    (MIME restriction optional — the client validates png/jpeg/webp/gif). The bucket's
    object RLS policies ship in the notes migration; only the bucket itself is manual.
+7. **(Phase 3 & 4)** No new manual setup — pages reuse the `note-attachments` bucket;
+   databases store no files. Just `supabase db push` the new migrations + regenerate types
+   (`supabase gen types typescript --linked > types/database.ts`, then re-add the hand-authored
+   `MemberRole`/`MembershipStatus` aliases the generator drops).
 
 ## Test ritual: "open two browser windows" (verify realtime before declaring done)
 
