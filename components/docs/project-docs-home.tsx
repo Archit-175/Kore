@@ -15,6 +15,7 @@ import {
   restorePage,
 } from '@/lib/actions/pages'
 import { toggleFavorite, touchRecent } from '@/lib/actions/workspace'
+import { ProjectDatabasesSection } from '@/components/databases/project-databases-section'
 
 /** Depth-first flatten of the page tree so the home can render the whole
  *  hierarchy (parent + nested children) as one indented list. */
@@ -241,6 +242,12 @@ export function ProjectDocsHome({
           )}
         </div>
       )}
+
+      <ProjectDatabasesSection
+        projectId={projectId}
+        workspaceId={workspaceId}
+        isOwner={isOwner}
+      />
     </div>
   )
 }

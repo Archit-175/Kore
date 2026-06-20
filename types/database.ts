@@ -80,6 +80,226 @@ export type Database = {
           },
         ]
       }
+      database_properties: {
+        Row: {
+          created_at: string
+          database_id: string
+          id: string
+          name: string
+          options: Json
+          sort: number
+          type: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          database_id: string
+          id?: string
+          name?: string
+          options?: Json
+          sort?: number
+          type?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          database_id?: string
+          id?: string
+          name?: string
+          options?: Json
+          sort?: number
+          type?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "database_properties_database_id_fkey"
+            columns: ["database_id"]
+            isOneToOne: false
+            referencedRelation: "databases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "database_properties_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      database_rows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: Json
+          database_id: string
+          id: string
+          sort: number
+          updated_at: string
+          view_order: Json
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          database_id: string
+          id?: string
+          sort?: number
+          updated_at?: string
+          view_order?: Json
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          database_id?: string
+          id?: string
+          sort?: number
+          updated_at?: string
+          view_order?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "database_rows_database_id_fkey"
+            columns: ["database_id"]
+            isOneToOne: false
+            referencedRelation: "databases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "database_rows_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      database_views: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by: string | null
+          database_id: string
+          group_property_id: string | null
+          id: string
+          name: string
+          sort: number
+          type: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          database_id: string
+          group_property_id?: string | null
+          id?: string
+          name?: string
+          sort?: number
+          type?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          database_id?: string
+          group_property_id?: string | null
+          id?: string
+          name?: string
+          sort?: number
+          type?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "database_views_database_id_fkey"
+            columns: ["database_id"]
+            isOneToOne: false
+            referencedRelation: "databases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "database_views_group_property_id_fkey"
+            columns: ["group_property_id"]
+            isOneToOne: false
+            referencedRelation: "database_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "database_views_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      databases: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          icon: string | null
+          id: string
+          name: string
+          project_id: string
+          sort: number
+          trashed_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          project_id: string
+          sort?: number
+          trashed_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          project_id?: string
+          sort?: number
+          trashed_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "databases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "databases_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favorites: {
         Row: {
           created_at: string
@@ -663,6 +883,36 @@ export type Database = {
       current_user_role: {
         Args: { p_workspace: string }
         Returns: Database["public"]["Enums"]["member_role"]
+      }
+      db_set_cell: {
+        Args: { p_key: string; p_row_id: string; p_value: Json }
+        Returns: undefined
+      }
+      db_set_row_group: {
+        Args: {
+          p_group_key: string
+          p_row_id: string
+          p_sort: number
+          p_value: Json
+          p_view_id: string
+        }
+        Returns: undefined
+      }
+      db_set_view_order: {
+        Args: { p_row_id: string; p_sort: number; p_view_id: string }
+        Returns: undefined
+      }
+      db_strip_property: {
+        Args: { p_database_id: string; p_property_id: string }
+        Returns: undefined
+      }
+      db_strip_view_order: {
+        Args: { p_database_id: string; p_view_id: string }
+        Returns: undefined
+      }
+      empty_database_trash: {
+        Args: { p_project_id: string }
+        Returns: undefined
       }
       empty_trash: { Args: never; Returns: undefined }
       invite_member: { Args: { p_email: string }; Returns: undefined }

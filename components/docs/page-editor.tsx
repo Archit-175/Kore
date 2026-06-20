@@ -22,6 +22,7 @@ import { pageDisplayTitle } from '@/lib/docs/types'
 import type { PresenceUser } from '@/lib/presence'
 import { useTheme } from '@/components/theme-provider'
 import { docSchema } from './schema'
+import { DatabaseEmbedContext } from './database-embed-context'
 
 const LINK_SYNC_DEBOUNCE = 1500
 
@@ -40,17 +41,20 @@ export function PageEditor({
   ydoc,
   awareness,
   pageId,
+  projectId,
   workspaceId,
   user,
 }: {
   ydoc: Y.Doc
   awareness: Awareness
   pageId: string
+  projectId: string
   workspaceId: string
   user: PresenceUser
 }) {
   const { theme } = useTheme()
   const supabase = useMemo(() => createClient(), [])
+  const embedCtx = useMemo(() => ({ workspaceId, projectId }), [workspaceId, projectId])
 
   const editor = useCreateBlockNote(
     {
@@ -121,11 +125,20 @@ export function PageEditor({
       icon: <span>💡</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'callout' }),
     }
+    const database: DefaultReactSuggestionItem = {
+      title: 'Database',
+      subtext: 'Embed a table / board',
+      aliases: ['database', 'table', 'board', 'kanban', 'grid'],
+      group: basicGroup,
+      icon: <span>🗄</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'databaseEmbed' }),
+    }
+    const extras = [callout, database]
     const lastBasic = defaults.map((i) => i.group).lastIndexOf(basicGroup)
     const items =
       lastBasic >= 0
-        ? [...defaults.slice(0, lastBasic + 1), callout, ...defaults.slice(lastBasic + 1)]
-        : [...defaults, callout]
+        ? [...defaults.slice(0, lastBasic + 1), ...extras, ...defaults.slice(lastBasic + 1)]
+        : [...defaults, ...extras]
     return filterSuggestionItems(items, query)
   }
 
@@ -153,11 +166,13 @@ export function PageEditor({
   }
 
   return (
-    <div className="kore-doc-editor">
-      <BlockNoteView editor={editor} theme={theme} slashMenu={false}>
-        <SuggestionMenuController triggerCharacter="/" getItems={getSlashItems} />
-        <SuggestionMenuController triggerCharacter="@" getItems={getMentionItems} />
-      </BlockNoteView>
-    </div>
+    <DatabaseEmbedContext.Provider value={embedCtx}>
+      <div className="kore-doc-editor">
+        <BlockNoteView editor={editor} theme={theme} slashMenu={false}>
+          <SuggestionMenuController triggerCharacter="/" getItems={getSlashItems} />
+          <SuggestionMenuController triggerCharacter="@" getItems={getMentionItems} />
+        </BlockNoteView>
+      </div>
+    </DatabaseEmbedContext.Provider>
   )
 }

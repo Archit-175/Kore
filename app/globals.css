@@ -31,3 +31,20 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* The inline database embed renders a real <table> inside the BlockNote
+   (ProseMirror) editor, whose table CSS leaks onto it and breaks the sticky
+   header / frozen title column:
+   - `.ProseMirror table { overflow: hidden; table-layout: fixed }` makes the
+     table its own clip context, so the sticky cells stuck to the (scrolling)
+     table instead of the scroll container — reset overflow + layout.
+   - `.ProseMirror th { position: relative }` (specificity 0,1,1) beat Tailwind's
+     `.sticky` (0,1,0) — re-assert sticky.
+   All harmless in the standalone view (no ProseMirror), where it already worked. */
+.kore-db-table {
+  overflow: visible !important;
+  table-layout: auto !important;
+}
+.kore-db-table .sticky {
+  position: sticky !important;
+}

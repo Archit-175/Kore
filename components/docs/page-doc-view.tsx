@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -67,6 +67,8 @@ export function PageDocView({
   const [title, setTitle] = useState(page.title)
   const [icon, setIcon] = useState<string | null>(page.icon)
   const [children, setChildren] = useState<PageNode[]>([])
+  // The parent-page chain (root → immediate parent) for the breadcrumb.
+  const [ancestors, setAncestors] = useState<{ id: string; title: string }[]>([])
   const titleRef = useRef<HTMLInputElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -97,6 +99,19 @@ export function PageDocView({
           setTitle((cur) => (self.title !== cur ? self.title : cur))
         }
       }
+      // Walk parent_page_id up to build the breadcrumb chain (cycle-guarded).
+      const byId = new Map(pages.map((p) => [p.id, p]))
+      const chain: { id: string; title: string }[] = []
+      const seen = new Set<string>()
+      let cur = self?.parentPageId ?? null
+      while (cur && !seen.has(cur)) {
+        seen.add(cur)
+        const node = byId.get(cur)
+        if (!node) break
+        chain.unshift({ id: node.id, title: node.title })
+        cur = node.parentPageId
+      }
+      setAncestors(chain)
     }
     const schedule = () => {
       if (refetchTimer) clearTimeout(refetchTimer)
@@ -145,11 +160,22 @@ export function PageDocView({
           <div className="flex min-w-0 items-center gap-1.5 text-sm">
             <Link
               href={`/p/${page.projectId}`}
-              className="truncate text-neutral-500 transition hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100"
+              className="shrink-0 truncate text-neutral-500 transition hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100"
             >
               {page.projectName}
             </Link>
-            <span className="text-neutral-300 dark:text-neutral-600">/</span>
+            {ancestors.map((a) => (
+              <Fragment key={a.id}>
+                <span className="shrink-0 text-neutral-300 dark:text-neutral-600">/</span>
+                <Link
+                  href={pageHref(page.projectId, a.id)}
+                  className="max-w-[10rem] truncate text-neutral-500 transition hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100"
+                >
+                  {pageDisplayTitle(a.title)}
+                </Link>
+              </Fragment>
+            ))}
+            <span className="shrink-0 text-neutral-300 dark:text-neutral-600">/</span>
             <span className="truncate font-medium">{title.trim() || 'Untitled'}</span>
           </div>
           <div className="flex items-center gap-3">
@@ -189,6 +215,7 @@ export function PageDocView({
               ydoc={ydoc}
               awareness={awareness}
               pageId={page.id}
+              projectId={page.projectId}
               workspaceId={workspaceId}
               user={memoUser}
             />
