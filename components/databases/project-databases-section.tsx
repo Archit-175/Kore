@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { useWorkspaceTable } from '@/lib/realtime/workspace-tables'
 import { loadProjectDatabases, loadTrashedDatabases } from '@/lib/databases/load-database'
 import { databaseDisplayName, dbHref, type DatabaseListItem } from '@/lib/databases/types'
 import {
@@ -27,7 +27,6 @@ export function ProjectDatabasesSection({
   isOwner: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
-  const channelId = useId().replace(/[^a-zA-Z0-9]/g, '')
   const router = useRouter()
 
   const [databases, setDatabases] = useState<DatabaseListItem[]>([])
@@ -45,33 +44,20 @@ export function ProjectDatabasesSection({
     setTrashed(trash)
   }, [supabase, workspaceId, projectId])
 
+  // Realtime via the ONE shared workspace channel (see lib/realtime/workspace-tables.ts).
+  const schedule = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => void doRefetch(), 300)
+  }, [doRefetch])
   useEffect(() => {
-    let channel: RealtimeChannel | null = null
-    let cancelled = false
-    const schedule = () => {
-      if (timer.current) clearTimeout(timer.current)
-      timer.current = setTimeout(() => void doRefetch(), 300)
-    }
     void (async () => {
       await doRefetch()
-      const { data } = await supabase.auth.getSession()
-      await supabase.realtime.setAuth(data.session?.access_token ?? null)
-      if (cancelled) return
-      channel = supabase
-        .channel(`dbhome:${projectId}:${channelId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'databases', filter: `project_id=eq.${projectId}` },
-          schedule,
-        )
-        .subscribe()
     })()
     return () => {
-      cancelled = true
       if (timer.current) clearTimeout(timer.current)
-      if (channel) void supabase.removeChannel(channel)
     }
-  }, [supabase, workspaceId, projectId, doRefetch, channelId])
+  }, [doRefetch])
+  useWorkspaceTable(workspaceId, 'databases', schedule)
 
   const newDatabase = async () => {
     setCreating(true)

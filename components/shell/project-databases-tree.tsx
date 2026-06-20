@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { useWorkspaceTable } from '@/lib/realtime/workspace-tables'
 import { loadProjectDatabases } from '@/lib/databases/load-database'
 import { databaseDisplayName, dbHref, type DatabaseListItem } from '@/lib/databases/types'
 import { createDatabase, renameDatabase, trashDatabase } from '@/lib/actions/databases'
@@ -25,7 +25,6 @@ export function ProjectDatabasesTree({
   onNavigate?: () => void
 }) {
   const supabase = useMemo(() => createClient(), [])
-  const channelId = useId().replace(/[^a-zA-Z0-9]/g, '')
   const router = useRouter()
   const pathname = usePathname()
 
@@ -42,29 +41,17 @@ export function ProjectDatabasesTree({
     refetchTimer.current = setTimeout(() => void doRefetch(), 300)
   }, [doRefetch])
 
+  // Initial load + realtime via the ONE shared workspace channel (avoids a
+  // postgres_changes channel per tree — see lib/realtime/workspace-tables.ts).
   useEffect(() => {
-    let channel: RealtimeChannel | null = null
-    let cancelled = false
     void (async () => {
       await doRefetch()
-      const { data } = await supabase.auth.getSession()
-      await supabase.realtime.setAuth(data.session?.access_token ?? null)
-      if (cancelled) return
-      channel = supabase
-        .channel(`dbtree:${projectId}:${channelId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'databases', filter: `project_id=eq.${projectId}` },
-          schedule,
-        )
-        .subscribe()
     })()
     return () => {
-      cancelled = true
       if (refetchTimer.current) clearTimeout(refetchTimer.current)
-      if (channel) void supabase.removeChannel(channel)
     }
-  }, [supabase, workspaceId, projectId, doRefetch, schedule, channelId])
+  }, [doRefetch])
+  useWorkspaceTable(workspaceId, 'databases', schedule)
 
   const handleCreate = async () => {
     const res = await createDatabase({ projectId })

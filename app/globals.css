@@ -48,3 +48,24 @@ body {
 .kore-db-table .sticky {
   position: sticky !important;
 }
+
+/* Excalidraw fills its container via absolute positioning, so the wrapper needs
+   an explicit-height, positioned box (the route gives it flex-1 full height; the
+   doc embed gives it a fixed ~480px box). `position: relative` also contains
+   Excalidraw's own absolutely-positioned UI layers. */
+.kore-wb-canvas {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+/* In the inline embed the canvas lives inside the BlockNote (ProseMirror) editor;
+   isolate it so the editor's text/caret CSS can't leak onto the Excalidraw chrome
+   and the canvas owns its own pointer/touch gestures. */
+.kore-wb-embed {
+  isolation: isolate;
+  cursor: default;
+  touch-action: none;
+}
+.kore-wb-embed .excalidraw {
+  --ui-font: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}

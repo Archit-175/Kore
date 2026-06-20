@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { useWorkspaceTable } from '@/lib/realtime/workspace-tables'
 import { loadProjectPages } from '@/lib/docs/load-pages'
 import { appendSort, buildTree, midpointSort, siblingsOf, subtreeIds } from '@/lib/docs/tree'
 import { pageDisplayTitle, pageHref, type PageNode, type PageTreeNode } from '@/lib/docs/types'
@@ -41,8 +41,6 @@ export function ProjectPagesTree({
   onNavigate?: () => void
 }) {
   const supabase = useMemo(() => createClient(), [])
-  // Unique per mount so navigation/HMR never reuses a still-closing channel.
-  const channelId = useId().replace(/[^a-zA-Z0-9]/g, '')
   const router = useRouter()
   const pathname = usePathname()
 
@@ -78,29 +76,17 @@ export function ProjectPagesTree({
     }
   }, [projectId])
 
+  // Initial load + realtime via the ONE shared workspace channel (avoids a
+  // postgres_changes channel per tree — see lib/realtime/workspace-tables.ts).
   useEffect(() => {
-    let channel: RealtimeChannel | null = null
-    let cancelled = false
     void (async () => {
       await doRefetch()
-      const { data } = await supabase.auth.getSession()
-      await supabase.realtime.setAuth(data.session?.access_token ?? null)
-      if (cancelled) return
-      channel = supabase
-        .channel(`pagetree:${projectId}:${channelId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'pages', filter: `workspace_id=eq.${workspaceId}` },
-          schedule,
-        )
-        .subscribe()
     })()
     return () => {
-      cancelled = true
       if (refetchTimer.current) clearTimeout(refetchTimer.current)
-      if (channel) void supabase.removeChannel(channel)
     }
-  }, [supabase, workspaceId, projectId, doRefetch, schedule, channelId])
+  }, [doRefetch])
+  useWorkspaceTable(workspaceId, 'pages', schedule)
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {

@@ -814,6 +814,60 @@ export type Database = {
           },
         ]
       }
+      whiteboards: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          icon: string | null
+          id: string
+          project_id: string
+          sort: number
+          title: string
+          trashed_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          project_id: string
+          sort?: number
+          title?: string
+          trashed_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          project_id?: string
+          sort?: number
+          title?: string
+          trashed_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whiteboards_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whiteboards_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspaces: {
         Row: {
           created_at: string
@@ -915,6 +969,10 @@ export type Database = {
         Returns: undefined
       }
       empty_trash: { Args: never; Returns: undefined }
+      empty_whiteboard_trash: {
+        Args: { p_project_id: string }
+        Returns: undefined
+      }
       invite_member: { Args: { p_email: string }; Returns: undefined }
       is_workspace_member: { Args: { p_workspace: string }; Returns: boolean }
       is_workspace_owner: { Args: { p_workspace: string }; Returns: boolean }

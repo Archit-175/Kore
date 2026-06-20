@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { useWorkspaceTable } from '@/lib/realtime/workspace-tables'
 import { loadProjectPages, loadTrashedPages } from '@/lib/docs/load-pages'
 import { buildTree } from '@/lib/docs/tree'
 import { pageDisplayTitle, pageHref, type PageNode, type PageTreeNode } from '@/lib/docs/types'
@@ -16,6 +16,7 @@ import {
 } from '@/lib/actions/pages'
 import { toggleFavorite, touchRecent } from '@/lib/actions/workspace'
 import { ProjectDatabasesSection } from '@/components/databases/project-databases-section'
+import { ProjectWhiteboardsSection } from '@/components/whiteboards/project-whiteboards-section'
 
 /** Depth-first flatten of the page tree so the home can render the whole
  *  hierarchy (parent + nested children) as one indented list. */
@@ -53,7 +54,6 @@ export function ProjectDocsHome({
   initialTrashed: PageNode[]
 }) {
   const supabase = useMemo(() => createClient(), [])
-  const channelId = useId().replace(/[^a-zA-Z0-9]/g, '')
   const router = useRouter()
   const [pages, setPages] = useState<PageNode[]>(initialPages)
   const [trashed, setTrashed] = useState<PageNode[]>(initialTrashed)
@@ -84,32 +84,18 @@ export function ProjectDocsHome({
     setTrashed(trash)
   }, [supabase, workspaceId, projectId])
 
-  useEffect(() => {
-    let channel: RealtimeChannel | null = null
-    let cancelled = false
-    const schedule = () => {
+  // Realtime via the ONE shared workspace channel (see lib/realtime/workspace-tables.ts).
+  const schedule = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => void doRefetch(), 300)
+  }, [doRefetch])
+  useWorkspaceTable(workspaceId, 'pages', schedule)
+  useEffect(
+    () => () => {
       if (timer.current) clearTimeout(timer.current)
-      timer.current = setTimeout(() => void doRefetch(), 300)
-    }
-    void (async () => {
-      const { data } = await supabase.auth.getSession()
-      await supabase.realtime.setAuth(data.session?.access_token ?? null)
-      if (cancelled) return
-      channel = supabase
-        .channel(`docshome:${projectId}:${channelId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'pages', filter: `workspace_id=eq.${workspaceId}` },
-          schedule,
-        )
-        .subscribe()
-    })()
-    return () => {
-      cancelled = true
-      if (timer.current) clearTimeout(timer.current)
-      if (channel) void supabase.removeChannel(channel)
-    }
-  }, [supabase, workspaceId, projectId, doRefetch, channelId])
+    },
+    [],
+  )
 
   const newPage = () => {
     startCreate(async () => {
@@ -244,6 +230,12 @@ export function ProjectDocsHome({
       )}
 
       <ProjectDatabasesSection
+        projectId={projectId}
+        workspaceId={workspaceId}
+        isOwner={isOwner}
+      />
+
+      <ProjectWhiteboardsSection
         projectId={projectId}
         workspaceId={workspaceId}
         isOwner={isOwner}

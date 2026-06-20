@@ -109,11 +109,17 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 > targeted-jsonb RPCs. Inline embed = a `databaseEmbed` BlockNote block (`selectable:false`)
 > that mounts the same `DatabaseView`. Verified via the two-browser ritual.
 
-### 4.4 Whiteboard (Excalidraw)
-- Infinite canvas: shapes, arrows, freehand, text, sticky notes, connectors
-- Real-time collaboration (multi-user editing)
-- Embed a whiteboard inside a doc page
-- Export to PNG / SVG
+### 4.4 Whiteboard (Excalidraw) — ✅ COMPLETE (Phase 5)
+- Infinite canvas: shapes, arrows, freehand, text, sticky notes, connectors → ✅
+- Real-time collaboration (multi-user editing) + live cursors → ✅ (hand-rolled Excalidraw↔Yjs
+  binding on the Phase-1 layer, `doc_type='whiteboard'`; `y-excalidraw` rejected as stale)
+- Embed a whiteboard inside a doc page → ✅ (`whiteboardEmbed` BlockNote block, same Yjs doc)
+- Export to PNG / SVG → ✅ (client-side `exportToBlob` / `exportToSvg`)
+- Images → Supabase Storage (`note-attachments`); CRDT holds only `{fileId→{path,mimeType}}`
+
+> Per-project Excalidraw whiteboards. Envelope (`whiteboards`) syncs via Postgres Changes; the
+> canvas body is Yjs (`doc_type='whiteboard'`). Single-window smoke verified (render/draw/persist/
+> export/embed/live-cursor); the two-window simultaneous-edit ritual is the final manual check.
 
 ### 4.5 Team Chat
 - **One global team channel** (workspace-wide, all members)
@@ -176,8 +182,9 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 4. **Databases** — ✅ **COMPLETE & VERIFIED.** Table + Board (Kanban) views, multiple saved
    views, JSONB flexible properties (title/text, status, single/multi-select, date, person→member),
    native-HTML5 drag between board columns, inline embed in Docs pages; Postgres-Changes realtime.
-5. **Whiteboard** — ⬅️ **NEXT.** Excalidraw canvas, real-time collab, embed-in-page, export
-6. **Glue & polish** — comments + mentions, team chat (global channel + threads + reactions), activity feed, global search refinement, mobile QA
+5. **Whiteboard** — ✅ **COMPLETE.** Excalidraw canvas, real-time collab + live cursors,
+   embed-in-page, PNG/SVG export (canvas in the Yjs layer `doc_type='whiteboard'`)
+6. **Glue & polish** — ⬅️ **NEXT.** comments + mentions, team chat (global channel + threads + reactions), activity feed, global search refinement, mobile QA
 
 ---
 
@@ -199,6 +206,6 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 
 ---
 
-*End of spec. **Phases 1–4 are complete & verified** — start the next session at Phase 5 (Whiteboard / Excalidraw).
+*End of spec. **Phases 1–5 are complete** — start the next session at Phase 6 (Glue & polish: comments, team chat, activity feed, search, mobile QA).
 See `CLAUDE.md` for the locked stack, folder structure, RLS convention, and the
 two-browser realtime test ritual.*

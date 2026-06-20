@@ -27,8 +27,12 @@ trash/restore, page icons, image upload) on the Phase-1 Yjs layer. Phase 4 (Data
 complete: per-project databases with **Table + Board (Kanban) views**, multiple saved views,
 flexible JSONB properties (title/text, status, single/multi-select, date, person→member),
 native-HTML5 drag between board columns, and an inline database embed inside Docs pages —
-all on Supabase Postgres Changes (NOT Yjs). **Next = Phase 5 (Whiteboard — Excalidraw:
-infinite canvas, real-time collab, embed-in-page, export).**
+all on Supabase Postgres Changes (NOT Yjs). Phase 5 (Whiteboard) is complete: per-project
+**@excalidraw/excalidraw** infinite canvas (shapes, arrows, freehand, text, sticky notes,
+connectors) with real-time multi-user collab + live cursors, an inline whiteboard embed
+inside Docs pages, and PNG/SVG export — the canvas body lives in the Phase-1 Yjs layer
+(`doc_type='whiteboard'`) via a hand-rolled Excalidraw↔Yjs binding; images go to Supabase
+Storage. **Next = Phase 6 (see `build-spec.md` §6 build order).**
 
 ## Resolved product decisions (Phase 1)
 
@@ -144,6 +148,54 @@ infinite canvas, real-time collab, embed-in-page, export).**
   can't contain the chips' remove-`<button>`s — hydration error). Table sticky header + frozen
   title column need **`border-separate`** (Chrome drops sticky under `border-collapse`).
 
+## Resolved product decisions (Phase 5 — Whiteboard)
+
+- **Scope:** whiteboards are **per-project** standalone entities at `/p/[projectId]/wb/[whiteboardId]`
+  (sidebar `ProjectWhiteboardsTree` + a `ProjectWhiteboardsSection` on the project Docs home),
+  **AND** an inline embed inside Docs pages. The relational **envelope** (`whiteboards`:
+  id/title/icon/sort/trashed_at) syncs via **Postgres Changes** (the notes/db pattern); the
+  **canvas body** is **Yjs-collaborative** in the unified `yjs_documents` table under
+  `doc_type='whiteboard'` (the Phase-1 layer Docs reuse).
+- **Collab/persistence = REUSE the Yjs layer (NOT a separate broadcast).** `WhiteboardView`
+  calls `useKoreYDoc({ docType:'whiteboard' })`; `KoreYjsProvider` does transport + snapshots
+  (`save_yjs_snapshot`, debounced 2.5s + unload) for free, with correct per-element CRDT
+  conflict handling. Excalidraw has **no native Yjs binding** and **`y-excalidraw` is rejected**
+  (last pub Dec 2024; peer `@excalidraw/excalidraw ^0.17.6` excludes 0.18.x; no React 19) —
+  so the binding is **hand-rolled** in `components/whiteboards/whiteboard-canvas.tsx`.
+- **The binding:** elements live in `ydoc.getMap('elements')` keyed by element id (per-element
+  LWW; deletions are `isDeleted:true` entries). Local `onChange` → **version-diffed** writes in
+  one `ydoc.transact(…, LOCAL_ORIGIN)` (~60ms throttle); the Y.Map `.observe` ignores
+  `origin===LOCAL_ORIGIN` and otherwise runs `reconcileElements(local, remote, appState)` →
+  `updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER })` (remote/init never
+  pollutes the local undo stack; `seen`-version bookkeeping prevents echo). Initial sync also
+  runs once in the `excalidrawAPI` callback (covers either ready/loaded ordering).
+- **Live cursors:** y-awareness ↔ Excalidraw `collaborators` `Map<SocketId, Collaborator>` —
+  `onPointerUpdate` (throttled ~40ms) writes `awareness.setLocalStateField('pointer', …)`;
+  `awareness.on('change')` rebuilds the collaborators Map → `updateScene({ collaborators })`.
+  `isCollaborating` is set so carets render; unmount clears the local pointer.
+- **Images = Supabase Storage (NOT base64-in-CRDT):** on a new file in `onChange.files`, decode
+  the dataURL → `uploadFile` to `note-attachments` at `{ws}/whiteboards/{wbId}/…` (reuse
+  `lib/storage`), and store ONLY `ydoc.getMap('files'): {fileId→{path,mimeType}}` in the CRDT;
+  remote clients observe that map → `getSignedUrl` → fetch → `addFiles`. Keeps snapshots lean.
+- **Excalidraw 0.18.1 specifics:** client-only — `whiteboard-canvas` is loaded
+  `dynamic(()=>import('./whiteboard-canvas'), { ssr:false })` by `whiteboard-view`, which itself
+  has NO static `@excalidraw/excalidraw` value import (only `import type … from
+  '@excalidraw/excalidraw/types'` + a lazy `await import(...)` in the export handler) so the
+  server route never loads it. `import '@excalidraw/excalidraw/index.css'`. Export = client-side
+  `exportToBlob` (PNG) / `exportToSvg` (SVG). No `transpilePackages` needed (Turbopack OK).
+- **Embed:** a `whiteboardEmbed` BlockNote block (`createReactBlockSpec`, `content:'none'`,
+  **`meta:{ selectable:false }`** + `contentEditable={false}` wrapper) stores ONLY a
+  `whiteboardId` and mounts `<WhiteboardView embedded>` (same Yjs doc ⇒ live). `WhiteboardEmbedContext`
+  carries `{workspaceId, projectId, user}` (the embed is collaborative, so unlike `databaseEmbed`
+  it needs the presence `user`). **Gotcha:** `.bn-block-content` is `display:flex` and Excalidraw
+  has no intrinsic width, so the embed wrapper needs **`w-full`** or it collapses to min-content
+  (`databaseEmbed` escaped this only because its `<table>` has intrinsic width). `globals.css`
+  adds `.kore-wb-canvas { position:relative; height:100%; width:100% }` (Excalidraw fills its box).
+- **Trash/perms (mirrors databases):** member trash/restore via `trashed_at`; only the whole
+  whiteboard's **permanent delete + empty-trash are owner-only** (`whiteboards_delete`). An AFTER
+  DELETE trigger purges the matching `yjs_documents` snapshot (image objects in Storage are left
+  orphaned in v1, like Docs). Recents/favorites are NOT wired (parity with databases).
+
 ## Next.js 16 gotchas (this is NOT the Next.js in your training data)
 
 - `middleware.ts` is renamed to **`proxy.ts`** (repo root, `export function proxy`,
@@ -168,7 +220,10 @@ tables, RLS, `supabase_realtime` publication + `replica identity full`, `empty_t
 `page_links`, `page_subtree_ids`, yjs snapshot purge) + `…140000_databases.sql` (databases /
 database_properties / database_views / database_rows — JSONB props, member-CRUD/owner-delete
 RLS, realtime publication + replica identity full, the jsonb-partial-update RPCs, and
-`empty_database_trash`). Never write inline SQL in chat — add a
+`empty_database_trash`) + `…150000_whiteboards.sql` (whiteboards envelope — member-CRUD/
+owner-delete RLS, realtime publication + replica identity full, `empty_whiteboard_trash`, and
+the `purge_whiteboard_yjs` AFTER-DELETE trigger that drops the `doc_type='whiteboard'`
+snapshot). Never write inline SQL in chat — add a
 new timestamped migration file. **New tables created in a later migration need an explicit
 `grant … to authenticated`** (init's blanket grant was a one-time snapshot).
 
@@ -188,6 +243,17 @@ new timestamped migration file. **New tables created in a later migration need a
   **async** in realtime-js 2.x — `await` it *before* `subscribe()`, or the private-channel
   join hangs forever at "connecting". Cursor overlays must sit **above** the opaque editor
   surface (`z-10`), or carets paint behind it and stay invisible.
+- **Postgres-Changes pool limit (found & fixed verifying Phase 5):** opening one
+  `postgres_changes` channel per component (each sidebar tree + home section + open view,
+  ×projects) exhausts the free-tier Realtime pool once 2 windows are open — Supabase rejects
+  new joins with `IncreaseConnectionPool` (and that rejection cascades to the presence +
+  Yjs-broadcast channels too). Fix: **`lib/realtime/workspace-tables.ts`** — a ref-counted
+  singleton that multiplexes pages/databases/whiteboards onto **ONE** channel per workspace
+  (several `.on('postgres_changes')` listeners, filtered by `workspace_id`); the sidebar
+  trees, the project-home sections, the Docs home, and WhiteboardView all subscribe via
+  `useWorkspaceTable(workspaceId, table, onChange)` instead of each opening a channel.
+  (page-doc-view's title-store channel, backlinks, DatabaseView's 4-table channel, the notes
+  board, and the Yjs provider/presence channels stay separate — each is one per route.)
 
 ## Folder structure
 
@@ -199,19 +265,23 @@ app/
   (onboarding)/               authed but no membership: setup, request-access
   (app)/                      authed + member: home, t/[teamId], members, notes,
                               p/[projectId] (Docs home), p/[projectId]/[pageId] (page editor),
-                              p/[projectId]/db/[databaseId] (database — Table/Board)
+                              p/[projectId]/db/[databaseId] (database — Table/Board),
+                              p/[projectId]/wb/[whiteboardId] (whiteboard — Excalidraw)
 lib/
   supabase/ client|server|proxy.ts
   dal.ts                      verifySession / requireMember / requireOwner / getPresenceUser
-  actions/ auth.ts | workspace.ts | notes.ts | pages.ts | databases.ts   server actions
+  actions/ auth.ts | workspace.ts | notes.ts | pages.ts | databases.ts | whiteboards.ts   server actions
   yjs/ provider | awareness | snapshot | use-kore-ydoc | encoding
   notes/ colors | types | load-board     notes board data + palette + aggregate types
   docs/ tree | types | load-pages        pages tree helpers (midpointSort) + loaders
   databases/ types | colors | ordering | load-database   db aggregate + option palette + per-view order
+  whiteboards/ types | load-whiteboards   whiteboard envelope types + loaders (canvas body = Yjs)
+  realtime/ workspace-tables   ONE shared postgres_changes channel per workspace (pool-safe)
   storage.ts                  uploadFile / getSignedUrl(s) / deleteFile (ADR 0001 seam)
   presence.ts | use-workspace-presence.ts
-components/ auth | onboarding | members | shell | collab | notes | docs | databases
-            + theme-provider/-toggle  (docs = BlockNote editor + databaseEmbed; databases = DatabaseView/Table/Board/cells)
+components/ auth | onboarding | members | shell | collab | notes | docs | databases | whiteboards
+            + theme-provider/-toggle  (docs = BlockNote editor + databaseEmbed + whiteboardEmbed;
+            databases = DatabaseView/Table/Board/cells; whiteboards = WhiteboardView/WhiteboardCanvas + sections)
 supabase/migrations/          the schema + RLS migration(s)
 types/database.ts             regenerate: supabase gen types typescript --linked > types/database.ts
 ```
@@ -235,10 +305,10 @@ server-only — never `NEXT_PUBLIC_`). Set all three in `.env.local` and in Verc
 6. **(Phase 2)** Storage → New bucket → **`note-attachments`**, **private**, 5 MB limit
    (MIME restriction optional — the client validates png/jpeg/webp/gif). The bucket's
    object RLS policies ship in the notes migration; only the bucket itself is manual.
-7. **(Phase 3 & 4)** No new manual setup — pages reuse the `note-attachments` bucket;
-   databases store no files. Just `supabase db push` the new migrations + regenerate types
-   (`supabase gen types typescript --linked > types/database.ts`, then re-add the hand-authored
-   `MemberRole`/`MembershipStatus` aliases the generator drops).
+7. **(Phase 3, 4 & 5)** No new manual setup — pages + whiteboard images reuse the
+   `note-attachments` bucket; databases store no files. Just `supabase db push` the new
+   migrations + regenerate types (`supabase gen types typescript --linked > types/database.ts`,
+   then re-add the hand-authored `MemberRole`/`MembershipStatus` aliases the generator drops).
 
 ## Test ritual: "open two browser windows" (verify realtime before declaring done)
 

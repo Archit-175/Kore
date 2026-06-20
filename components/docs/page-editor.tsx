@@ -23,6 +23,7 @@ import type { PresenceUser } from '@/lib/presence'
 import { useTheme } from '@/components/theme-provider'
 import { docSchema } from './schema'
 import { DatabaseEmbedContext } from './database-embed-context'
+import { WhiteboardEmbedContext } from './whiteboard-embed-context'
 
 const LINK_SYNC_DEBOUNCE = 1500
 
@@ -55,6 +56,10 @@ export function PageEditor({
   const { theme } = useTheme()
   const supabase = useMemo(() => createClient(), [])
   const embedCtx = useMemo(() => ({ workspaceId, projectId }), [workspaceId, projectId])
+  const wbEmbedCtx = useMemo(
+    () => ({ workspaceId, projectId, user }),
+    [workspaceId, projectId, user],
+  )
 
   const editor = useCreateBlockNote(
     {
@@ -133,7 +138,15 @@ export function PageEditor({
       icon: <span>🗄</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'databaseEmbed' }),
     }
-    const extras = [callout, database]
+    const whiteboard: DefaultReactSuggestionItem = {
+      title: 'Whiteboard',
+      subtext: 'Embed an Excalidraw canvas',
+      aliases: ['whiteboard', 'canvas', 'draw', 'excalidraw', 'diagram', 'sketch'],
+      group: basicGroup,
+      icon: <span>🎨</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'whiteboardEmbed' }),
+    }
+    const extras = [callout, database, whiteboard]
     const lastBasic = defaults.map((i) => i.group).lastIndexOf(basicGroup)
     const items =
       lastBasic >= 0
@@ -167,12 +180,14 @@ export function PageEditor({
 
   return (
     <DatabaseEmbedContext.Provider value={embedCtx}>
-      <div className="kore-doc-editor">
-        <BlockNoteView editor={editor} theme={theme} slashMenu={false}>
-          <SuggestionMenuController triggerCharacter="/" getItems={getSlashItems} />
-          <SuggestionMenuController triggerCharacter="@" getItems={getMentionItems} />
-        </BlockNoteView>
-      </div>
+      <WhiteboardEmbedContext.Provider value={wbEmbedCtx}>
+        <div className="kore-doc-editor">
+          <BlockNoteView editor={editor} theme={theme} slashMenu={false}>
+            <SuggestionMenuController triggerCharacter="/" getItems={getSlashItems} />
+            <SuggestionMenuController triggerCharacter="@" getItems={getMentionItems} />
+          </BlockNoteView>
+        </div>
+      </WhiteboardEmbedContext.Provider>
     </DatabaseEmbedContext.Provider>
   )
 }

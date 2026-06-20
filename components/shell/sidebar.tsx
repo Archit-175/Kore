@@ -6,6 +6,7 @@ import { createInvite, createProject, createTeam } from '@/lib/actions/workspace
 import { InlineCreate } from './inline-create'
 import { ProjectPagesTree } from './project-pages-tree'
 import { ProjectDatabasesTree } from './project-databases-tree'
+import { ProjectWhiteboardsTree } from './project-whiteboards-tree'
 
 export type SidebarTeam = { id: string; name: string; icon: string | null }
 export type SidebarProject = { id: string; name: string; icon: string | null; teamId: string }
@@ -186,6 +187,11 @@ export function Sidebar({
                       onNavigate={onNavigate}
                     />
                     <ProjectDatabasesTree
+                      projectId={p.id}
+                      workspaceId={data.workspaceId}
+                      onNavigate={onNavigate}
+                    />
+                    <ProjectWhiteboardsTree
                       projectId={p.id}
                       workspaceId={data.workspaceId}
                       onNavigate={onNavigate}

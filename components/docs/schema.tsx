@@ -8,6 +8,7 @@ import {
 import { createReactBlockSpec, createReactInlineContentSpec } from '@blocknote/react'
 import { MentionChip } from './mention-chip'
 import { DatabaseEmbedView } from './database-embed'
+import { WhiteboardEmbedView } from './whiteboard-embed'
 
 /**
  * The Docs editor schema = BlockNote defaults + three additions:
@@ -54,6 +55,22 @@ export const DatabaseEmbed = createReactBlockSpec(
   },
 )
 
+export const WhiteboardEmbed = createReactBlockSpec(
+  { type: 'whiteboardEmbed', propSchema: { whiteboardId: { default: '' } }, content: 'none' },
+  {
+    // Same void-widget guard as databaseEmbed: selectable:false installs
+    // stopEvent + blur-on-mousedown so ProseMirror can't node-select/delete the
+    // embed or intercept the Excalidraw canvas's pointer/drag.
+    meta: { selectable: false },
+    render: (props) => (
+      <WhiteboardEmbedView
+        whiteboardId={props.block.props.whiteboardId}
+        onPick={(id) => props.editor.updateBlock(props.block, { props: { whiteboardId: id } })}
+      />
+    ),
+  },
+)
+
 export const PageMention = createReactInlineContentSpec(
   {
     type: 'mention',
@@ -81,6 +98,11 @@ export const PageMention = createReactInlineContentSpec(
 const { table: _table, ...baseBlockSpecs } = defaultBlockSpecs
 
 export const docSchema = BlockNoteSchema.create({
-  blockSpecs: { ...baseBlockSpecs, callout: Callout(), databaseEmbed: DatabaseEmbed() },
+  blockSpecs: {
+    ...baseBlockSpecs,
+    callout: Callout(),
+    databaseEmbed: DatabaseEmbed(),
+    whiteboardEmbed: WhiteboardEmbed(),
+  },
   inlineContentSpecs: { ...defaultInlineContentSpecs, mention: PageMention },
 })
