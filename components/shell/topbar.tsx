@@ -44,7 +44,7 @@ export function Topbar({
       </button>
 
       <div className="flex flex-1 justify-center px-2">
-        <GlobalSearch />
+        <GlobalSearch workspaceId={workspaceId} />
       </div>
 
       <OnlineAvatars users={online} />

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireMember, requireOwner, verifySession } from '@/lib/dal'
+import { logActivity, type ActivityAction } from '@/lib/actions/activity'
 
 /**
  * Whiteboards (Phase 5) Server Actions — the real authz boundary (DAL-gated; RLS
@@ -18,6 +19,33 @@ import { requireMember, requireOwner, verifySession } from '@/lib/dal'
 type Result = { error?: string }
 type CreateResult = { error?: string; id?: string }
 type Supabase = Awaited<ReturnType<typeof createClient>>
+
+/** Snapshot a whiteboard's project_id + title and log a coarse activity event.
+ *  Call AFTER rename/trash/restore (row still exists) or BEFORE permanent delete. */
+async function logWhiteboardEvent(
+  supabase: Supabase,
+  workspaceId: string,
+  actorId: string,
+  id: string,
+  action: ActivityAction,
+): Promise<void> {
+  const { data } = await supabase
+    .from('whiteboards')
+    .select('project_id, title')
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!data) return
+  await logActivity(supabase, {
+    workspaceId,
+    projectId: data.project_id,
+    actorId,
+    action,
+    targetType: 'whiteboard',
+    targetId: id,
+    targetTitle: data.title,
+  })
+}
 
 /** Next fractional append rank = (max existing sort in the project) + 1. */
 async function nextSort(
@@ -66,18 +94,30 @@ export async function createWhiteboard(input: {
     .select('id')
     .single()
   if (error) return { error: error.message }
+  await logActivity(supabase, {
+    workspaceId: membership.workspaceId,
+    projectId: input.projectId,
+    actorId: user.id,
+    action: 'created',
+    targetType: 'whiteboard',
+    targetId: data.id,
+    targetTitle: input.title || 'Untitled',
+  })
   return { id: data.id }
 }
 
 export async function renameWhiteboard(id: string, title: string): Promise<Result> {
   const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const { error } = await supabase
     .from('whiteboards')
     .update({ title: title ?? '' })
     .eq('id', id)
     .eq('workspace_id', membership.workspaceId)
-  return error ? { error: error.message } : {}
+  if (error) return { error: error.message }
+  await logWhiteboardEvent(supabase, membership.workspaceId, user.id, id, 'renamed')
+  return {}
 }
 
 export async function updateWhiteboardIcon(id: string, icon: string | null): Promise<Result> {
@@ -104,31 +144,40 @@ export async function reorderWhiteboard(id: string, sort: number): Promise<Resul
 
 export async function trashWhiteboard(id: string): Promise<Result> {
   const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const { error } = await supabase
     .from('whiteboards')
     .update({ trashed_at: new Date().toISOString() })
     .eq('id', id)
     .eq('workspace_id', membership.workspaceId)
-  return error ? { error: error.message } : {}
+  if (error) return { error: error.message }
+  await logWhiteboardEvent(supabase, membership.workspaceId, user.id, id, 'trashed')
+  return {}
 }
 
 export async function restoreWhiteboard(id: string): Promise<Result> {
   const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const { error } = await supabase
     .from('whiteboards')
     .update({ trashed_at: null })
     .eq('id', id)
     .eq('workspace_id', membership.workspaceId)
-  return error ? { error: error.message } : {}
+  if (error) return { error: error.message }
+  await logWhiteboardEvent(supabase, membership.workspaceId, user.id, id, 'restored')
+  return {}
 }
 
 /** Permanent delete — owner-only. The DB AFTER DELETE trigger purges the
  *  matching yjs_documents snapshot. */
 export async function deleteWhiteboardPermanent(id: string): Promise<Result> {
   const membership = await requireOwner()
+  const user = await verifySession()
   const supabase = await createClient()
+  // Snapshot the title BEFORE the row is gone.
+  await logWhiteboardEvent(supabase, membership.workspaceId, user.id, id, 'deleted')
   const { error } = await supabase
     .from('whiteboards')
     .delete()

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BoardNote, NoteBoardActions, NotesTab } from '@/lib/notes/types'
 import { NOTE_COLOR_CLASSES } from '@/lib/notes/colors'
+import { CommentsPanel } from '@/components/comments/comments-panel'
 import { ChecklistEditor } from './checklist-editor'
 import { ColorPicker } from './color-picker'
 import { ImageUploader } from './image-uploader'
@@ -21,11 +22,15 @@ export function NoteEditorModal({
   note,
   tab,
   actions,
+  workspaceId,
+  currentUserId,
   onClose,
 }: {
   note: BoardNote
   tab: NotesTab
   actions: NoteBoardActions
+  workspaceId: string
+  currentUserId: string
   onClose: () => void
 }) {
   const [title, setTitle] = useState(note.title)
@@ -183,6 +188,20 @@ export function NoteEditorModal({
                   )}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* Comments (not in trash) */}
+          {!readOnly && (
+            <div className="rounded-lg border border-border/60">
+              <CommentsPanel
+                targetType="note"
+                targetId={note.id}
+                workspaceId={workspaceId}
+                currentUserId={currentUserId}
+                isOwner={actions.isOwner}
+                inline
+              />
             </div>
           )}
         </div>

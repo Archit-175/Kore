@@ -32,10 +32,12 @@ const TABS: { key: NotesTab; label: string }[] = [
 export function NotesBoard({
   initial,
   workspaceId,
+  currentUserId,
   isOwner,
 }: {
   initial: BoardData
   workspaceId: string
+  currentUserId: string
   isOwner: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -482,6 +484,8 @@ export function NotesBoard({
           note={openNote}
           tab={noteTab(openNote)}
           actions={actions}
+          workspaceId={workspaceId}
+          currentUserId={currentUserId}
           onClose={() => setOpenNoteId(null)}
         />
       )}

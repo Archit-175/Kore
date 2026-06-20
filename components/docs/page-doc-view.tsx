@@ -13,6 +13,7 @@ import { OnlineAvatars } from '@/components/shell/online-avatars'
 import type { PresenceUser } from '@/lib/presence'
 import type { ProviderStatus } from '@/lib/yjs/provider'
 import { pageDisplayTitle, pageHref, type Backlink, type PageNode } from '@/lib/docs/types'
+import { CommentsPanel } from '@/components/comments/comments-panel'
 import { Backlinks } from './backlinks'
 import { IconPicker } from './icon-picker'
 import { PageTitleStore, PageTitleStoreContext, type PageTitleEntry } from './page-titles-store'
@@ -38,11 +39,13 @@ export function PageDocView({
   page,
   user,
   workspaceId,
+  isOwner,
   initialBacklinks,
 }: {
   page: { id: string; projectId: string; projectName: string; title: string; icon: string | null }
   user: PresenceUser
   workspaceId: string
+  isOwner: boolean
   initialBacklinks: Backlink[]
 }) {
   const memoUser = useMemo(
@@ -66,6 +69,7 @@ export function PageDocView({
 
   const [title, setTitle] = useState(page.title)
   const [icon, setIcon] = useState<string | null>(page.icon)
+  const [showComments, setShowComments] = useState(false)
   const [children, setChildren] = useState<PageNode[]>([])
   // The parent-page chain (root → immediate parent) for the breadcrumb.
   const [ancestors, setAncestors] = useState<{ id: string; title: string }[]>([])
@@ -179,16 +183,30 @@ export function PageDocView({
             <span className="truncate font-medium">{title.trim() || 'Untitled'}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+            <span className="hidden items-center gap-1.5 text-xs text-neutral-500 sm:flex dark:text-neutral-400">
               <span className={`h-2 w-2 rounded-full ${STATUS_COLOR[status]}`} />
               {STATUS_LABEL[status]}
             </span>
             <OnlineAvatars users={online} />
+            <button
+              type="button"
+              onClick={() => setShowComments((v) => !v)}
+              aria-label="Toggle comments"
+              title="Comments"
+              className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
+                showComments
+                  ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300'
+                  : 'text-neutral-500 hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/10'
+              }`}
+            >
+              <span className="text-base">💬</span>
+            </button>
           </div>
         </div>
 
-        {/* Document */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Body: document + (desktop) comments side panel */}
+        <div className="flex min-h-0 flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 py-8">
             <div className="mb-1">
               <IconPicker
@@ -244,8 +262,43 @@ export function PageDocView({
             )}
 
             <Backlinks pageId={page.id} workspaceId={workspaceId} initial={initialBacklinks} />
+            </div>
           </div>
+
+          {showComments && (
+            <aside className="hidden w-80 shrink-0 flex-col border-l border-border md:flex">
+              <CommentsPanel
+                targetType="page"
+                targetId={page.id}
+                workspaceId={workspaceId}
+                currentUserId={user.id}
+                isOwner={isOwner}
+                onClose={() => setShowComments(false)}
+              />
+            </aside>
+          )}
         </div>
+
+        {/* Comments drawer (mobile) */}
+        {showComments && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setShowComments(false)}
+              aria-hidden
+            />
+            <aside className="absolute right-0 top-0 flex h-full w-full max-w-sm flex-col border-l border-border bg-background shadow-xl">
+              <CommentsPanel
+                targetType="page"
+                targetId={page.id}
+                workspaceId={workspaceId}
+                currentUserId={user.id}
+                isOwner={isOwner}
+                onClose={() => setShowComments(false)}
+              />
+            </aside>
+          </div>
+        )}
       </div>
     </PageTitleStoreContext.Provider>
   )

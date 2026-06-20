@@ -69,3 +69,16 @@ body {
 .kore-wb-embed .excalidraw {
   --ui-font: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Brief highlight when you jump to a quoted chat message (WhatsApp-style reply). */
+.kore-msg-flash {
+  animation: kore-msg-flash 1.2s ease-out;
+}
+@keyframes kore-msg-flash {
+  0% {
+    background-color: rgba(99, 102, 241, 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}

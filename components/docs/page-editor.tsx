@@ -16,7 +16,7 @@ import '@blocknote/core/fonts/inter.css'
 import '@blocknote/mantine/style.css'
 import './blocknote-theme.css'
 import { createClient } from '@/lib/supabase/client'
-import { syncPageLinks } from '@/lib/actions/pages'
+import { syncPageLinks, syncPageSearchText } from '@/lib/actions/pages'
 import { getSignedUrl, uploadDocFile } from '@/lib/storage'
 import { pageDisplayTitle } from '@/lib/docs/types'
 import type { PresenceUser } from '@/lib/presence'
@@ -88,25 +88,38 @@ export function PageEditor({
     [ydoc, awareness],
   )
 
-  // --- backlinks: rewrite this page's outgoing @-mention links on edit --------
+  // --- on edit (debounced): rewrite outgoing @-mention links AND mirror the
+  //     body into pages.search_text (the opaque Yjs body isn't server-searchable).
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEditorChange(() => {
     if (syncTimer.current) clearTimeout(syncTimer.current)
     syncTimer.current = setTimeout(() => {
       const ids = new Set<string>()
+      const parts: string[] = []
       const walk = (blocks: typeof editor.document) => {
         for (const block of blocks) {
           const content = block.content
           if (Array.isArray(content)) {
             for (const ic of content) {
-              if (ic.type === 'mention' && ic.props.pageId) ids.add(ic.props.pageId)
+              if (ic.type === 'text') {
+                parts.push(ic.text)
+              } else if (ic.type === 'mention') {
+                if (ic.props.pageId) ids.add(ic.props.pageId)
+                if (ic.props.title) parts.push(`@${ic.props.title}`)
+              } else if (ic.type === 'link' && Array.isArray(ic.content)) {
+                for (const lc of ic.content) {
+                  if (lc.type === 'text') parts.push(lc.text)
+                }
+              }
             }
+            parts.push('\n')
           }
           if (block.children.length > 0) walk(block.children)
         }
       }
       walk(editor.document)
       void syncPageLinks(pageId, [...ids])
+      void syncPageSearchText(pageId, parts.join(' ').replace(/[ \t]+/g, ' ').trim())
     }, LINK_SYNC_DEBOUNCE)
   }, editor)
   useEffect(

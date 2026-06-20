@@ -36,6 +36,7 @@ export default async function PageEditorRoute({
       }}
       user={presenceUser}
       workspaceId={membership.workspaceId}
+      isOwner={membership.role === 'owner'}
       initialBacklinks={initialBacklinks}
     />
   )

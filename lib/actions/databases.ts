@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireMember, requireOwner, verifySession } from '@/lib/dal'
+import { logActivity, type ActivityAction } from '@/lib/actions/activity'
 import type { CellValue, PropertyType, SelectOption } from '@/lib/databases/types'
 import { PROPERTY_TYPES } from '@/lib/databases/types'
 import type { Json, TablesUpdate } from '@/types/database'
@@ -39,6 +40,33 @@ async function databaseInWorkspace(
     .eq('workspace_id', workspaceId)
     .maybeSingle()
   return data ? { projectId: data.project_id } : null
+}
+
+/** Snapshot a database's project_id + name and log a coarse activity event.
+ *  Call AFTER trash/restore/rename (row still exists) or BEFORE permanent delete. */
+async function logDatabaseEvent(
+  supabase: Supabase,
+  workspaceId: string,
+  actorId: string,
+  id: string,
+  action: ActivityAction,
+): Promise<void> {
+  const { data } = await supabase
+    .from('databases')
+    .select('project_id, name')
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!data) return
+  await logActivity(supabase, {
+    workspaceId,
+    projectId: data.project_id,
+    actorId,
+    action,
+    targetType: 'database',
+    targetId: id,
+    targetTitle: data.name,
+  })
 }
 
 /** Next fractional append rank = (max existing sort) + 1. */
@@ -158,18 +186,30 @@ export async function createDatabase(input: {
   })
   if (viewErr) return { error: viewErr.message }
 
+  await logActivity(supabase, {
+    workspaceId: membership.workspaceId,
+    projectId: input.projectId,
+    actorId: user.id,
+    action: 'created',
+    targetType: 'database',
+    targetId: db.id,
+    targetTitle: input.name || 'Untitled',
+  })
   return { id: db.id }
 }
 
 export async function renameDatabase(id: string, name: string): Promise<Result> {
   const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const { error } = await supabase
     .from('databases')
     .update({ name: name ?? '' })
     .eq('id', id)
     .eq('workspace_id', membership.workspaceId)
-  return error ? { error: error.message } : {}
+  if (error) return { error: error.message }
+  await logDatabaseEvent(supabase, membership.workspaceId, user.id, id, 'renamed')
+  return {}
 }
 
 export async function updateDatabaseIcon(id: string, icon: string | null): Promise<Result> {
@@ -196,30 +236,39 @@ export async function reorderDatabase(id: string, sort: number): Promise<Result>
 
 export async function trashDatabase(id: string): Promise<Result> {
   const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const { error } = await supabase
     .from('databases')
     .update({ trashed_at: new Date().toISOString() })
     .eq('id', id)
     .eq('workspace_id', membership.workspaceId)
-  return error ? { error: error.message } : {}
+  if (error) return { error: error.message }
+  await logDatabaseEvent(supabase, membership.workspaceId, user.id, id, 'trashed')
+  return {}
 }
 
 export async function restoreDatabase(id: string): Promise<Result> {
   const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const { error } = await supabase
     .from('databases')
     .update({ trashed_at: null })
     .eq('id', id)
     .eq('workspace_id', membership.workspaceId)
-  return error ? { error: error.message } : {}
+  if (error) return { error: error.message }
+  await logDatabaseEvent(supabase, membership.workspaceId, user.id, id, 'restored')
+  return {}
 }
 
 /** Permanent delete — owner-only. FK cascade removes properties/views/rows. */
 export async function deleteDatabasePermanent(id: string): Promise<Result> {
   const membership = await requireOwner()
+  const user = await verifySession()
   const supabase = await createClient()
+  // Snapshot the title BEFORE the row is gone.
+  await logDatabaseEvent(supabase, membership.workspaceId, user.id, id, 'deleted')
   const { error } = await supabase
     .from('databases')
     .delete()

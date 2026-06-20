@@ -22,8 +22,25 @@ import type { Database } from '@/types/database'
  * the first subscriber and torn down after the last unsubscribes.
  */
 
-export type WatchedTable = 'pages' | 'databases' | 'whiteboards'
-const WATCHED: WatchedTable[] = ['pages', 'databases', 'whiteboards']
+export type WatchedTable =
+  | 'pages'
+  | 'databases'
+  | 'whiteboards'
+  | 'messages'
+  | 'message_reactions'
+  | 'message_reads'
+  | 'comments'
+  | 'activity_log'
+const WATCHED: WatchedTable[] = [
+  'pages',
+  'databases',
+  'whiteboards',
+  'messages',
+  'message_reactions',
+  'message_reads',
+  'comments',
+  'activity_log',
+]
 
 type Registry = {
   supabase: SupabaseClient<Database>

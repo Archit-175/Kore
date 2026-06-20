@@ -32,7 +32,12 @@ all on Supabase Postgres Changes (NOT Yjs). Phase 5 (Whiteboard) is complete: pe
 connectors) with real-time multi-user collab + live cursors, an inline whiteboard embed
 inside Docs pages, and PNG/SVG export — the canvas body lives in the Phase-1 Yjs layer
 (`doc_type='whiteboard'`) via a hand-rolled Excalidraw↔Yjs binding; images go to Supabase
-Storage. **Next = Phase 6 (see `build-spec.md` §6 build order).**
+Storage. Phase 6 (Glue & polish) is complete — the **FINAL** feature phase: workspace-wide
+**team chat** (`/chat`, WhatsApp-style inline quote-replies, reactions, @member-mentions,
+presence, infinite scroll, attachments, edit/delete, unread badge), **comments** on Docs
+pages + Note cards, a per-project **activity feed**, and real **⌘K global search** — all on
+Supabase Postgres Changes (NOT Yjs), reusing the Phase-5 realtime singleton. **All six v1
+modules are shipped; remaining work is UI/UX polish, not new features.**
 
 ## Resolved product decisions (Phase 1)
 
@@ -196,6 +201,59 @@ Storage. **Next = Phase 6 (see `build-spec.md` §6 build order).**
   DELETE trigger purges the matching `yjs_documents` snapshot (image objects in Storage are left
   orphaned in v1, like Docs). Recents/favorites are NOT wired (parity with databases).
 
+## Resolved product decisions (Phase 6 — Glue & polish)
+
+- **All on Supabase Postgres Changes (NOT Yjs).** Five new tables in `…160000_glue.sql`
+  (`messages`, `message_reactions`, `message_reads`, `comments`, `activity_log`), each with a
+  denormalized `workspace_id`, `replica identity full`, in the `supabase_realtime` publication,
+  explicit `grant … to authenticated`. Loaders/actions mirror the notes/databases pattern
+  (DAL-gated, stamp `workspace_id`/`author_id`, IDOR re-resolve, return `{ error }`, **skip
+  `revalidatePath`**).
+- **Realtime reuses the Phase-5 singleton.** `lib/realtime/workspace-tables.ts` `WATCHED` was
+  extended with the 5 tables; the sidebar unread badge, comment panels, and the activity section
+  all subscribe via `useWorkspaceTable(...)`. Only the **`/chat` route** opens its own dedicated
+  `chat:{ws}:{useId}` channel (the DatabaseView pattern — high-frequency, one mount).
+- **Authz (messages & comments are author-scoped):** authors EDIT **and** DELETE their own; the
+  workspace **owner may DELETE (not edit) anyone's** — encoded as an author-only UPDATE policy +
+  **two permissive DELETE policies** (`*_delete_own` author / `*_delete_owner` owner) that OR.
+  `message_reads` is strictly self-scoped; `activity_log` insert is gated on `actor_id=auth.uid()`
+  (append-only, no update/delete).
+- **Team chat** (`/chat`, one workspace channel — `workspace_id` IS the channel): WhatsApp-style
+  inline **quote-replies** via `messages.parent_message_id` (`on delete set null` so a moderated
+  parent keeps its replies); emoji reactions (`message_reactions`, unique `(message_id,user_id,
+  emoji)` → insert/`23505`→delete toggle); `message_reads.last_read_message_id` drives the unread
+  badge; presence via the shared `useWorkspacePresence`; **infinite scroll-UP** (keyset on
+  `(created_at,id)`; realtime reload uses `loadChatWindow` anchor→now to keep the top anchored);
+  attachments stored **inline on `messages.attachments` jsonb** (NOT the `attachments` table,
+  which is unpublished — inline rides the message INSERT) via `uploadChatFile` →
+  `{ws}/chat/{uuid}`.
+- **Comments:** one reusable `<CommentsPanel>` — a right-side panel on Docs pages (full-screen
+  drawer below `md:`) and an **inline** section in the note modal (`inline` prop = natural height,
+  no internal scroll). Polymorphic `comments.target_type` (`page`|`note`) + `target_id`, **no FK**
+  (like `attachments`); the panel subscribes via the singleton `useWorkspaceTable('comments')` and
+  client-filters to its target. (Deleting a page/note orphans its comments — invisible, v1 tradeoff.)
+- **`@member`-mentions in textareas** (distinct from the Phase-3 page mentions inside BlockNote):
+  `components/mentions` — a `<MentionTextarea>` with a caret-token `@` popup, plus
+  `extractMentionIds`/`renderMessageBody`. **Dual storage:** the body keeps the literal `@Name`
+  text (renders chips via a greedy longest-name scanner, boundary-gated so `email@Anna` isn't a
+  mention) AND a parsed `mentions uuid[]` column (validated to active members; future notifications).
+- **Activity feed** (per-project, coarse): a best-effort `logActivity()` helper (NOT a server
+  action — never throws, never blocks the mutation) called INSIDE the existing pages/databases/
+  whiteboards/notes actions on create/rename/trash/restore/delete (notes only when project-filed;
+  `target_title` is a snapshot). `<ActivitySection>` on the project Docs home self-hides when empty.
+- **⌘K global search:** the `global_search(p_workspace, p_query)` **SECURITY DEFINER** RPC —
+  MANDATORY `is_workspace_member` early-return (else cross-workspace leak), plain **ILIKE** (escaped
+  `%`/`_`/`\`; no trigram) UNION across notes (title+content), pages (title + **`search_text`**),
+  databases (name), database_rows (`data::text`), whiteboards (title), messages (body). Page BODIES
+  are searchable via a new denormalized **`pages.search_text`** column written debounced from the
+  editor onChange (alongside `syncPageLinks`) — old pages stay title-only until first edited.
+  `components/shell/command-palette.tsx` replaces the placeholder.
+- **Gotchas found verifying:** (1) `lib/use-workspace-presence.ts` is now a **ref-counted
+  singleton** — the chat header + the topbar both mount it, and two channels on the same
+  `presence:{ws}` topic threw "cannot add presence callbacks after subscribe()". (2) Chat message
+  time renders **client-only** (a `ClockTime` component) — `toLocaleTimeString` is locale/TZ-
+  dependent and the initial messages are SSR'd, so server text mismatched the browser on hydration.
+
 ## Next.js 16 gotchas (this is NOT the Next.js in your training data)
 
 - `middleware.ts` is renamed to **`proxy.ts`** (repo root, `export function proxy`,
@@ -223,7 +281,10 @@ RLS, realtime publication + replica identity full, the jsonb-partial-update RPCs
 `empty_database_trash`) + `…150000_whiteboards.sql` (whiteboards envelope — member-CRUD/
 owner-delete RLS, realtime publication + replica identity full, `empty_whiteboard_trash`, and
 the `purge_whiteboard_yjs` AFTER-DELETE trigger that drops the `doc_type='whiteboard'`
-snapshot). Never write inline SQL in chat — add a
+snapshot) + `…160000_glue.sql` (Phase 6: `messages` / `message_reactions` / `message_reads` /
+`comments` / `activity_log` — author-scoped edit/delete + owner-delete RLS, realtime publication
++ replica identity full, the `pages.search_text` column, and the `global_search` SECURITY-DEFINER
+RPC). Never write inline SQL in chat — add a
 new timestamped migration file. **New tables created in a later migration need an explicit
 `grant … to authenticated`** (init's blanket grant was a one-time snapshot).
 
@@ -254,6 +315,9 @@ new timestamped migration file. **New tables created in a later migration need a
   `useWorkspaceTable(workspaceId, table, onChange)` instead of each opening a channel.
   (page-doc-view's title-store channel, backlinks, DatabaseView's 4-table channel, the notes
   board, and the Yjs provider/presence channels stay separate — each is one per route.)
+  **Phase 6 extended `WATCHED`** with `messages`/`message_reactions`/`message_reads`/`comments`/
+  `activity_log`: the sidebar unread badge, comment panels, and the activity section ride the
+  singleton; only the single-mount `/chat` route opens its own dedicated channel.
 
 ## Folder structure
 
@@ -263,25 +327,34 @@ app/
   login | signup              public auth pages
   auth/callback/route.ts      OAuth / email-confirmation code exchange
   (onboarding)/               authed but no membership: setup, request-access
-  (app)/                      authed + member: home, t/[teamId], members, notes,
+  (app)/                      authed + member: home, t/[teamId], members, notes, chat,
                               p/[projectId] (Docs home), p/[projectId]/[pageId] (page editor),
                               p/[projectId]/db/[databaseId] (database — Table/Board),
                               p/[projectId]/wb/[whiteboardId] (whiteboard — Excalidraw)
 lib/
   supabase/ client|server|proxy.ts
   dal.ts                      verifySession / requireMember / requireOwner / getPresenceUser
-  actions/ auth.ts | workspace.ts | notes.ts | pages.ts | databases.ts | whiteboards.ts   server actions
+  actions/ auth.ts | workspace.ts | notes.ts | pages.ts | databases.ts | whiteboards.ts
+           | chat.ts | comments.ts | activity.ts (logActivity helper)   server actions
   yjs/ provider | awareness | snapshot | use-kore-ydoc | encoding
   notes/ colors | types | load-board     notes board data + palette + aggregate types
   docs/ tree | types | load-pages        pages tree helpers (midpointSort) + loaders
   databases/ types | colors | ordering | load-database   db aggregate + option palette + per-view order
   whiteboards/ types | load-whiteboards   whiteboard envelope types + loaders (canvas body = Yjs)
+  chat/ types | load-chat        chat aggregate + keyset/window loaders + unread count
+  comments/ types | load-comments    comment thread loader (polymorphic target)
+  activity/ load-activity        per-project activity feed loader
+  search/ search                 globalSearch RPC client (dedupe + group)
   realtime/ workspace-tables   ONE shared postgres_changes channel per workspace (pool-safe)
-  storage.ts                  uploadFile / getSignedUrl(s) / deleteFile (ADR 0001 seam)
-  presence.ts | use-workspace-presence.ts
+  storage.ts                  uploadFile / uploadDocFile / uploadChatFile / getSignedUrl(s) / deleteFile (ADR 0001 seam)
+  format-time.ts              timeAgo / clockTime (chat/comments/activity)
+  presence.ts | use-workspace-presence.ts (ref-counted singleton)
 components/ auth | onboarding | members | shell | collab | notes | docs | databases | whiteboards
-            + theme-provider/-toggle  (docs = BlockNote editor + databaseEmbed + whiteboardEmbed;
-            databases = DatabaseView/Table/Board/cells; whiteboards = WhiteboardView/WhiteboardCanvas + sections)
+            | chat | comments | activity | mentions  + theme-provider/-toggle
+            (docs = BlockNote editor + databaseEmbed + whiteboardEmbed; databases =
+            DatabaseView/Table/Board/cells; whiteboards = WhiteboardView/WhiteboardCanvas;
+            chat = ChatView/timeline/message-row/composer; comments = CommentsPanel;
+            mentions = MentionTextarea + render/extract; shell += command-palette + chat-unread-badge)
 supabase/migrations/          the schema + RLS migration(s)
 types/database.ts             regenerate: supabase gen types typescript --linked > types/database.ts
 ```
@@ -305,10 +378,11 @@ server-only — never `NEXT_PUBLIC_`). Set all three in `.env.local` and in Verc
 6. **(Phase 2)** Storage → New bucket → **`note-attachments`**, **private**, 5 MB limit
    (MIME restriction optional — the client validates png/jpeg/webp/gif). The bucket's
    object RLS policies ship in the notes migration; only the bucket itself is manual.
-7. **(Phase 3, 4 & 5)** No new manual setup — pages + whiteboard images reuse the
-   `note-attachments` bucket; databases store no files. Just `supabase db push` the new
-   migrations + regenerate types (`supabase gen types typescript --linked > types/database.ts`,
-   then re-add the hand-authored `MemberRole`/`MembershipStatus` aliases the generator drops).
+7. **(Phase 3, 4, 5 & 6)** No new manual setup — pages + whiteboard + **chat** images all reuse
+   the `note-attachments` bucket (chat files land at `{ws}/chat/…`); databases store no files.
+   Just `supabase db push` the new migrations + regenerate types (`supabase gen types typescript
+   --linked > types/database.ts`, then re-add the hand-authored `MemberRole`/`MembershipStatus`
+   aliases the generator drops).
 
 ## Test ritual: "open two browser windows" (verify realtime before declaring done)
 

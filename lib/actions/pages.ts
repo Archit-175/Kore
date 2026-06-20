@@ -2,6 +2,36 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireMember, requireOwner, verifySession } from '@/lib/dal'
+import { logActivity, type ActivityAction } from '@/lib/actions/activity'
+
+type Supabase = Awaited<ReturnType<typeof createClient>>
+
+/** Snapshot a page's project_id + title and log a coarse activity event. Call
+ *  AFTER rename/trash/restore (row still exists) or BEFORE permanent delete. */
+async function logPageEvent(
+  supabase: Supabase,
+  workspaceId: string,
+  actorId: string,
+  id: string,
+  action: ActivityAction,
+): Promise<void> {
+  const { data } = await supabase
+    .from('pages')
+    .select('project_id, title')
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!data) return
+  await logActivity(supabase, {
+    workspaceId,
+    projectId: data.project_id,
+    actorId,
+    action,
+    targetType: 'page',
+    targetId: id,
+    targetTitle: data.title,
+  })
+}
 
 /**
  * Pages (Docs) Server Actions — the real authz boundary (DAL-gated; RLS double-
@@ -70,13 +100,39 @@ export async function createPage(input: {
     .select('id')
     .single()
   if (error) return { error: error.message }
+  await logActivity(supabase, {
+    workspaceId: membership.workspaceId,
+    projectId: input.projectId,
+    actorId: user.id,
+    action: 'created',
+    targetType: 'page',
+    targetId: data.id,
+    targetTitle: input.title || 'Untitled',
+  })
   return { id: data.id }
 }
 
 export async function renamePage(id: string, title: string): Promise<Result> {
-  await requireMember()
+  const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const { error } = await supabase.from('pages').update({ title: title ?? '' }).eq('id', id)
+  if (error) return { error: error.message }
+  await logPageEvent(supabase, membership.workspaceId, user.id, id, 'renamed')
+  return {}
+}
+
+/** Mirror the page's plain-text body into pages.search_text for global search.
+ *  Called debounced from the editor onChange (alongside syncPageLinks). The body
+ *  itself is opaque Yjs bytea, so this denormalized column is what ⌘K searches. */
+export async function syncPageSearchText(pageId: string, text: string): Promise<Result> {
+  const membership = await requireMember()
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('pages')
+    .update({ search_text: (text ?? '').slice(0, 20000) })
+    .eq('id', pageId)
+    .eq('workspace_id', membership.workspaceId)
   return error ? { error: error.message } : {}
 }
 
@@ -128,31 +184,40 @@ async function subtreeIdsOf(
  *  UPDATE, so it rides the same RLS as any edit. The pages realtime feed drops
  *  the trashed rows from every open tree. */
 export async function trashPage(id: string): Promise<Result> {
-  await requireMember()
+  const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const ids = await subtreeIdsOf(supabase, id)
   const { error } = await supabase
     .from('pages')
     .update({ trashed_at: new Date().toISOString() })
     .in('id', ids)
-  return error ? { error: error.message } : {}
+  if (error) return { error: error.message }
+  await logPageEvent(supabase, membership.workspaceId, user.id, id, 'trashed')
+  return {}
 }
 
 /** Restore a trashed page + its subtree (member-allowed). */
 export async function restorePage(id: string): Promise<Result> {
-  await requireMember()
+  const membership = await requireMember()
+  const user = await verifySession()
   const supabase = await createClient()
   const ids = await subtreeIdsOf(supabase, id)
   const { error } = await supabase.from('pages').update({ trashed_at: null }).in('id', ids)
-  return error ? { error: error.message } : {}
+  if (error) return { error: error.message }
+  await logPageEvent(supabase, membership.workspaceId, user.id, id, 'restored')
+  return {}
 }
 
 /** Permanent delete — owner-only (mirrors projects_delete / deleteNotePermanent).
  *  FK cascade removes the subtree + page_links; the pages_purge_yjs trigger
  *  removes each page's Yjs snapshot. */
 export async function deletePagePermanent(id: string): Promise<Result> {
-  await requireOwner()
+  const membership = await requireOwner()
+  const user = await verifySession()
   const supabase = await createClient()
+  // Snapshot the title BEFORE the row is gone.
+  await logPageEvent(supabase, membership.workspaceId, user.id, id, 'deleted')
   const { error } = await supabase.from('pages').delete().eq('id', id)
   return error ? { error: error.message } : {}
 }

@@ -121,21 +121,28 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 > canvas body is Yjs (`doc_type='whiteboard'`). Single-window smoke verified (render/draw/persist/
 > export/embed/live-cursor); the two-window simultaneous-edit ritual is the final manual check.
 
-### 4.5 Team Chat
-- **One global team channel** (workspace-wide, all members)
-- Real-time message delivery via Supabase Realtime
-- **Threads** (reply to a message to start a thread)
-- **Emoji reactions** on messages
-- `@mentions` (reuse the mention system from comments)
-- Online presence (reuse "who's online")
-- Message history with infinite scroll
-- Image/file attachments (Supabase Storage)
-- Edit / delete own messages
-- Unread indicator for the channel
+### 4.5 Team Chat — ✅ COMPLETE (Phase 6)
+- **One global team channel** (workspace-wide, all members) at `/chat` ✅
+- Real-time message delivery via Supabase **Postgres Changes** (not Yjs) ✅
+- **Quote-replies** — WhatsApp-style: a reply renders the quoted parent inline (no thread panel) ✅
+- **Emoji reactions** on messages ✅
+- `@member`-mentions (people; shared with comments) ✅
+- Online presence (reuse "who's online") ✅
+- Message history with **infinite scroll-up** (keyset pagination) ✅
+- Image/file attachments (Supabase Storage, inline on the message) ✅
+- Edit / delete own messages (+ owner-delete moderation) ✅
+- Unread indicator for the channel (badge on the Chat nav) ✅
 
-### 4.6 Collaboration Glue
-- Comments + `@mentions` on pages and note cards
-- Activity feed per project (change history)
+### 4.6 Collaboration Glue — ✅ COMPLETE (Phase 6)
+- Comments + `@member`-mentions on Docs pages and Note cards ✅
+- Activity feed per project (coarse change history) ✅
+- Global ⌘K search across all six modules (the Phase-1 placeholder replaced) ✅
+
+> One workspace-wide chat, comments, a per-project activity feed, and ⌘K search — all plain
+> rows on **Postgres Changes**, reusing the Phase-5 realtime singleton. Author-scoped
+> edit/delete (owner may moderate-delete). Full Docs-body search via a synced `pages.search_text`
+> mirror + a `global_search` SECURITY-DEFINER RPC. Verified single-window; the two-window
+> simultaneous-member ritual is the final manual check.
 
 ---
 
@@ -165,11 +172,12 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 - **database_rows** ✅ — `data` jsonb keyed by property id (cell values) + `sort` (global) +
   `view_order` jsonb (per-view order overrides)
 - **whiteboards** — `id`, `project_id`, `title` (Yjs state lives in **yjs_documents**, `doc_type='whiteboard'`)
-- **comments** — `id`, `target_type`, `target_id`, `author_id`, `body`, `parent_id`
-- **messages** — `id`, `workspace_id`, `author_id`, `body`, `parent_message_id` (null = top-level, set = thread reply), `edited_at`, `created_at`
-- **message_reactions** — `id`, `message_id`, `user_id`, `emoji`
-- **message_reads** — `user_id`, `last_read_message_id` (for unread indicator)
-- **activity_log** — `id`, `project_id`, `actor_id`, `action`, `target`, `created_at`
+- **comments** ✅ — `id`, `workspace_id`, `target_type` (page|note), `target_id`, `author_id`, `body`, `mentions` (uuid[]), `parent_id` (nullable, reserved); polymorphic, no FK to the target
+- **messages** ✅ — `id`, `workspace_id`, `author_id`, `body`, `parent_message_id` (null = top-level, set = quote-reply; `on delete set null`), `mentions` (uuid[]), `attachments` (jsonb, inline), `edited_at`, `created_at`
+- **message_reactions** ✅ — `id`, `workspace_id`, `message_id`, `user_id`, `emoji` (unique on message_id+user_id+emoji)
+- **message_reads** ✅ — `(user_id, workspace_id)` PK, `last_read_message_id` (drives the unread badge)
+- **activity_log** ✅ — `id`, `workspace_id`, `project_id`, `actor_id`, `action`, `target_type`, `target_id`, `target_title` (snapshot), `created_at`
+- **pages.search_text** ✅ — denormalized plain-text mirror of the (Yjs-opaque) page body for `global_search`
 - **attachments** ✅ — `id`, `workspace_id`, `url`, `target_type`, `target_id`, `mime_type` (`url` stores the storage object PATH; signed URLs minted on read via `lib/storage.ts`)
 
 ---
@@ -184,7 +192,11 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
    native-HTML5 drag between board columns, inline embed in Docs pages; Postgres-Changes realtime.
 5. **Whiteboard** — ✅ **COMPLETE.** Excalidraw canvas, real-time collab + live cursors,
    embed-in-page, PNG/SVG export (canvas in the Yjs layer `doc_type='whiteboard'`)
-6. **Glue & polish** — ⬅️ **NEXT.** comments + mentions, team chat (global channel + threads + reactions), activity feed, global search refinement, mobile QA
+6. **Glue & polish** — ✅ **COMPLETE.** Team chat (global channel + quote-replies + reactions +
+   @member-mentions + presence + infinite scroll + attachments + edit/delete + unread badge),
+   comments on Docs pages + Note cards, per-project activity feed, ⌘K global search (replacing the
+   placeholder; full Docs-body search via `pages.search_text`), mobile QA — all on Postgres
+   Changes reusing the Phase-5 realtime singleton.
 
 ---
 
@@ -206,6 +218,8 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 
 ---
 
-*End of spec. **Phases 1–5 are complete** — start the next session at Phase 6 (Glue & polish: comments, team chat, activity feed, search, mobile QA).
+*End of spec. **All six phases (1–6) are complete** — Kore v1 is feature-complete
+(Foundation, Notes, Docs, Databases, Whiteboard, and Glue & polish: chat + comments +
+activity + ⌘K search). Remaining work is UI/UX polish, not new features.
 See `CLAUDE.md` for the locked stack, folder structure, RLS convention, and the
 two-browser realtime test ritual.*

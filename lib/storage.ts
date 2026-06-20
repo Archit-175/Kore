@@ -88,6 +88,30 @@ export async function uploadDocFile(
   return { path }
 }
 
+/**
+ * Upload a file attached to a chat message to the shared private bucket under
+ * {workspaceId}/chat/{uuid}.{ext} (segment 1 = workspace_id is what
+ * storage.objects RLS checks). Returns the backend-neutral object PATH; the
+ * message stores it inline (messages.attachments) and signs it on render.
+ */
+export async function uploadChatFile(
+  client: Supabase,
+  opts: { workspaceId: string; file: File },
+): Promise<{ path?: string; error?: string }> {
+  if (opts.file.size > MAX_IMAGE_BYTES) return { error: 'File must be 5 MB or smaller.' }
+  const dot = opts.file.name.lastIndexOf('.')
+  const ext =
+    dot >= 0 ? opts.file.name.slice(dot + 1).toLowerCase() : (EXT_BY_TYPE[opts.file.type] ?? 'bin')
+  const path = `${opts.workspaceId}/chat/${crypto.randomUUID()}.${ext}`
+
+  const { error } = await client.storage.from(NOTE_BUCKET).upload(path, opts.file, {
+    contentType: opts.file.type || 'application/octet-stream',
+    upsert: false,
+  })
+  if (error) return { error: error.message }
+  return { path }
+}
+
 /** Mint a time-limited signed URL for a single stored path. */
 export async function getSignedUrl(
   client: Supabase,

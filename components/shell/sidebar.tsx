@@ -7,6 +7,7 @@ import { InlineCreate } from './inline-create'
 import { ProjectPagesTree } from './project-pages-tree'
 import { ProjectDatabasesTree } from './project-databases-tree'
 import { ProjectWhiteboardsTree } from './project-whiteboards-tree'
+import { ChatUnreadBadge } from './chat-unread-badge'
 
 export type SidebarTeam = { id: string; name: string; icon: string | null }
 export type SidebarProject = { id: string; name: string; icon: string | null; teamId: string }
@@ -15,6 +16,8 @@ export type SidebarLink = { id: string; name: string; href: string }
 export type SidebarData = {
   workspaceId: string
   workspaceName: string
+  currentUserId: string
+  chatUnread: number
   isOwner: boolean
   teams: SidebarTeam[]
   projects: SidebarProject[]
@@ -89,6 +92,24 @@ export function Sidebar({
         >
           🗒
         </Link>
+        <Link
+          href="/chat"
+          onClick={onNavigate}
+          title="Chat"
+          className={`relative mb-1 flex h-8 w-8 items-center justify-center rounded-md text-xs transition ${
+            pathname === '/chat'
+              ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300'
+              : 'text-neutral-600 hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/10'
+          }`}
+        >
+          💬
+          <ChatUnreadBadge
+            workspaceId={data.workspaceId}
+            currentUserId={data.currentUserId}
+            initial={data.chatUnread}
+            dot
+          />
+        </Link>
         {data.projects.map((p) => {
           const href = `/p/${p.id}`
           const active = pathname === href
@@ -134,6 +155,23 @@ export function Sidebar({
           active={pathname === '/notes'}
           onNavigate={onNavigate}
         />
+        <Link
+          href="/chat"
+          onClick={onNavigate}
+          className={`flex items-center gap-2 truncate rounded px-2 py-1.5 text-sm transition ${
+            pathname === '/chat'
+              ? 'bg-indigo-500/10 font-medium text-indigo-600 dark:text-indigo-300'
+              : 'text-neutral-700 hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/5'
+          }`}
+        >
+          <span className="w-4 text-center text-xs">💬</span>
+          <span className="truncate">Chat</span>
+          <ChatUnreadBadge
+            workspaceId={data.workspaceId}
+            currentUserId={data.currentUserId}
+            initial={data.chatUnread}
+          />
+        </Link>
       </div>
 
       {data.favorites.length > 0 && (

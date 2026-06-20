@@ -17,6 +17,7 @@ import {
 import { toggleFavorite, touchRecent } from '@/lib/actions/workspace'
 import { ProjectDatabasesSection } from '@/components/databases/project-databases-section'
 import { ProjectWhiteboardsSection } from '@/components/whiteboards/project-whiteboards-section'
+import { ActivitySection } from '@/components/activity/activity-section'
 
 /** Depth-first flatten of the page tree so the home can render the whole
  *  hierarchy (parent + nested children) as one indented list. */
@@ -240,6 +241,8 @@ export function ProjectDocsHome({
         workspaceId={workspaceId}
         isOwner={isOwner}
       />
+
+      <ActivitySection projectId={projectId} workspaceId={workspaceId} />
     </div>
   )
 }

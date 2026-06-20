@@ -1,5 +1,6 @@
 import { getPresenceUser, requireMember, verifySession } from '@/lib/dal'
 import { createClient } from '@/lib/supabase/server'
+import { loadUnreadCount } from '@/lib/chat/load-chat'
 import { AppShell } from '@/components/shell/app-shell'
 import type { SidebarData, SidebarLink } from '@/components/shell/sidebar'
 
@@ -9,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const presenceUser = await getPresenceUser()
   const supabase = await createClient()
 
-  const [teamsRes, projectsRes, favRes, recentRes] = await Promise.all([
+  const [teamsRes, projectsRes, favRes, recentRes, chatUnread] = await Promise.all([
     supabase.from('teams').select('id, name, icon, position').order('position'),
     supabase.from('projects').select('id, name, icon, team_id, position').order('position'),
     supabase.from('favorites').select('target_type, target_id').eq('user_id', user.id),
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .eq('user_id', user.id)
       .order('visited_at', { ascending: false })
       .limit(8),
+    loadUnreadCount(supabase, membership.workspaceId, user.id),
   ])
 
   const teams = teamsRes.data ?? []
@@ -43,6 +45,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const sidebar: SidebarData = {
     workspaceId: membership.workspaceId,
     workspaceName: membership.workspace.name,
+    currentUserId: user.id,
+    chatUnread,
     isOwner: membership.role === 'owner',
     teams: teams.map((t) => ({ id: t.id, name: t.name, icon: t.icon })),
     projects: projects.map((p) => ({

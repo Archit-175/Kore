@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireMember, requireOwner, verifySession } from '@/lib/dal'
+import { logActivity, type ActivityAction } from '@/lib/actions/activity'
 import { normalizeColor } from '@/lib/notes/colors'
 import { NOTE_BUCKET } from '@/lib/storage'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -21,6 +22,30 @@ import type { Database } from '@/types/database'
 type Supabase = SupabaseClient<Database>
 type Result = { error?: string }
 type CreateResult = { error?: string; id?: string }
+
+/** Log a coarse activity event for a note — only when it's filed under a project
+ *  (the activity feed is per-project; workspace-wide notes are skipped). */
+async function logNoteEventById(id: string, action: ActivityAction): Promise<void> {
+  const membership = await requireMember()
+  const user = await verifySession()
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('notes')
+    .select('project_id, title')
+    .eq('id', id)
+    .eq('workspace_id', membership.workspaceId)
+    .maybeSingle()
+  if (!data?.project_id) return
+  await logActivity(supabase, {
+    workspaceId: membership.workspaceId,
+    projectId: data.project_id,
+    actorId: user.id,
+    action,
+    targetType: 'note',
+    targetId: id,
+    targetTitle: data.title || 'Untitled',
+  })
+}
 
 // ----------------------------------------------------------------------------
 // Notes
@@ -50,6 +75,27 @@ export async function createNote(input: {
     .select('id')
     .single()
   if (error) return { error: error.message }
+  if (input.projectId) {
+    // Only log when the project is genuinely in this workspace (don't let a
+    // client-supplied foreign project_id land in activity_log — M1).
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', input.projectId)
+      .eq('workspace_id', membership.workspaceId)
+      .maybeSingle()
+    if (proj) {
+      await logActivity(supabase, {
+        workspaceId: membership.workspaceId,
+        projectId: input.projectId,
+        actorId: user.id,
+        action: 'created',
+        targetType: 'note',
+        targetId: data.id,
+        targetTitle: (input.title ?? '').trim() || 'Untitled',
+      })
+    }
+  }
   return { id: data.id }
 }
 
@@ -98,10 +144,14 @@ export async function unarchiveNote(id: string): Promise<Result> {
   return setNoteTimestamp(id, 'archived_at', null)
 }
 export async function trashNote(id: string): Promise<Result> {
-  return setNoteTimestamp(id, 'trashed_at', new Date().toISOString())
+  const res = await setNoteTimestamp(id, 'trashed_at', new Date().toISOString())
+  if (!res.error) await logNoteEventById(id, 'trashed')
+  return res
 }
 export async function restoreNote(id: string): Promise<Result> {
-  return setNoteTimestamp(id, 'trashed_at', null)
+  const res = await setNoteTimestamp(id, 'trashed_at', null)
+  if (!res.error) await logNoteEventById(id, 'restored')
+  return res
 }
 
 /** Permanent delete — owner-only (mirrors projects_delete). Also purges the
@@ -109,6 +159,8 @@ export async function restoreNote(id: string): Promise<Result> {
 export async function deleteNotePermanent(id: string): Promise<Result> {
   await requireOwner()
   const supabase = await createClient()
+  // Snapshot the event BEFORE the row is gone (only logs if project-filed).
+  await logNoteEventById(id, 'deleted')
   await purgeAttachmentsFor(supabase, [id])
   const { error } = await supabase.from('notes').delete().eq('id', id)
   return error ? { error: error.message } : {}
