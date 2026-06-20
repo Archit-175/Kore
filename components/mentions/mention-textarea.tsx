@@ -64,8 +64,14 @@ export function MentionTextarea({
   const matches = useMemo(() => {
     if (!open) return []
     const q = query.toLowerCase()
+    // Match by handle OR display name so typing either finds the person; the
+    // inserted token is always the handle (see insertMention).
     return members
-      .filter((m) => m.name.trim() && m.name.toLowerCase().includes(q))
+      .filter(
+        (m) =>
+          m.handle?.trim() &&
+          (m.handle.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)),
+      )
       .slice(0, 8)
   }, [open, query, members])
 
@@ -117,8 +123,8 @@ export function MentionTextarea({
       if (!m) return
       // Keep the leading boundary char (the (?:^|[\s(]) group), drop the @token.
       const tokenStart = before.length - (m[1]?.length ?? 0) - 1 // index of '@'
-      const next = `${value.slice(0, tokenStart)}@${member.name} ${after}`
-      pendingCaret.current = tokenStart + member.name.length + 2 // after "@Name "
+      const next = `${value.slice(0, tokenStart)}@${member.handle} ${after}`
+      pendingCaret.current = tokenStart + member.handle.length + 2 // after "@handle "
       setOpen(false)
       onChange(next)
     },
@@ -186,7 +192,10 @@ export function MentionTextarea({
                     initials(m.name)
                   )}
                 </span>
-                <span className="truncate">{m.name}</span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate">{m.name}</span>
+                  <span className="truncate text-xs text-neutral-400">@{m.handle}</span>
+                </span>
               </button>
             </li>
           ))}

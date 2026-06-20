@@ -28,19 +28,24 @@ export default async function MembersPage() {
   const rows = (data ?? []) as Row[]
 
   const activeIds = rows.map((r) => r.user_id).filter((id): id is string => Boolean(id))
-  const profilesById = new Map<string, { full_name: string | null; email: string }>()
+  const profilesById = new Map<
+    string,
+    { full_name: string | null; email: string; handle: string | null }
+  >()
   if (activeIds.length) {
     const { data: profs } = await supabase
       .from('profiles')
-      .select('id, full_name, email')
+      .select('id, full_name, email, handle')
       .in('id', activeIds)
-    for (const p of profs ?? []) profilesById.set(p.id, { full_name: p.full_name, email: p.email })
+    for (const p of profs ?? [])
+      profilesById.set(p.id, { full_name: p.full_name, email: p.email, handle: p.handle })
   }
 
   const nameOf = (r: Row) => {
     const p = r.user_id ? profilesById.get(r.user_id) : undefined
     return p?.full_name || p?.email || r.invited_email
   }
+  const handleOf = (r: Row) => (r.user_id ? profilesById.get(r.user_id)?.handle : null)
 
   const requests = rows.filter((r) => r.status === 'requested')
   const members = rows.filter((r) => r.status !== 'requested')
@@ -114,7 +119,12 @@ export default async function MembersPage() {
             <li key={r.id} className="flex items-center gap-3 px-4 py-3">
               <Avatar row={r} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{nameOf(r)}</p>
+                <p className="truncate text-sm font-medium">
+                  {nameOf(r)}
+                  {handleOf(r) && (
+                    <span className="ml-1.5 font-normal text-neutral-400">@{handleOf(r)}</span>
+                  )}
+                </p>
                 <p className="truncate text-xs text-neutral-400">{r.invited_email}</p>
               </div>
               <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs capitalize text-neutral-500 dark:bg-white/10 dark:text-neutral-300">

@@ -4,17 +4,21 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { initials, type PresenceUser } from '@/lib/presence'
 import { signOut } from '@/lib/actions/auth'
+import { ProfileModal } from './profile-modal'
 
 export function AvatarMenu({
   user,
   email,
+  workspaceId,
   isOwner,
 }: {
   user: PresenceUser
   email: string
+  workspaceId: string
   isOwner: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -48,6 +52,16 @@ export function AvatarMenu({
             <p className="truncate text-sm font-medium">{user.name}</p>
             <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">{email}</p>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(true)
+              setOpen(false)
+            }}
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5"
+          >
+            Edit profile
+          </button>
           {isOwner && (
             <Link
               href="/members"
@@ -66,6 +80,15 @@ export function AvatarMenu({
             </button>
           </form>
         </div>
+      )}
+
+      {editing && (
+        <ProfileModal
+          workspaceId={workspaceId}
+          userId={user.id}
+          fallbackColor={user.color}
+          onClose={() => setEditing(false)}
+        />
       )}
     </div>
   )

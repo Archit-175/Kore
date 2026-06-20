@@ -100,10 +100,12 @@ export type DatabaseListItem = {
   rowCount: number
 }
 
-/** A workspace member, for resolving `person` cells to a name + avatar. */
+/** A workspace member, for resolving `person` cells to a name + avatar, and as
+ *  the source list for @-mentions (handle = the unique mention token). */
 export type DbMember = {
   id: string
   name: string
+  handle: string
   avatarUrl: string | null
 }
 

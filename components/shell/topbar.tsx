@@ -49,7 +49,7 @@ export function Topbar({
 
       <OnlineAvatars users={online} />
       <ThemeToggle />
-      <AvatarMenu user={user} email={email} isOwner={isOwner} />
+      <AvatarMenu user={user} email={email} workspaceId={workspaceId} isOwner={isOwner} />
     </header>
   )
 }

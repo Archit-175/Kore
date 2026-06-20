@@ -190,11 +190,12 @@ export async function loadWorkspaceMembers(
 
   const { data: profs } = await client
     .from('profiles')
-    .select('id, full_name, email, avatar_url')
+    .select('id, full_name, email, avatar_url, handle')
     .in('id', ids)
   return (profs ?? []).map((p) => ({
     id: p.id,
     name: p.full_name || p.email || 'Member',
+    handle: p.handle ?? '',
     avatarUrl: p.avatar_url,
   }))
 }

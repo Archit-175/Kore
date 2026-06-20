@@ -3,19 +3,25 @@ import { Fragment, type ReactNode } from 'react'
 /**
  * Member @-mentions for the chat + comments textareas (people, NOT the Phase-3
  * page mentions which live inside BlockNote). A mention is stored TWO ways:
- *  - in the `body` text as a literal `@Display Name ` token (so the message round-
- *    trips as plain text and renders without parsing ambiguity), AND
+ *  - in the `body` text as a literal `@handle ` token — the member's unique,
+ *    lowercase mention handle (so the mention is STABLE across display-name
+ *    changes and round-trips unambiguously as plain text), AND
  *  - in a `mentions uuid[]` column (the semantic source of truth — validated
  *    server-side against active members; future notifications key off it).
  *
  * Both `extractMentionIds` (write path) and `renderMessageBody` (read path) use
- * the SAME greedy scanner: at each `@`, match the LONGEST member name the
+ * the SAME greedy scanner: at each `@`, match the LONGEST member HANDLE the
  * following text starts with (case-insensitive, on a word boundary). Longest-
- * first disambiguates names that are prefixes of others ("An" vs "Anna") and
- * lets names contain spaces ("Archit Savaliya").
+ * first disambiguates handles that are prefixes of others ("ann" vs "anna").
+ * The rendered chip shows the friendly display name, not the handle.
  */
 
-export type MentionMember = { id: string; name: string; avatarUrl: string | null }
+export type MentionMember = {
+  id: string
+  name: string
+  handle: string
+  avatarUrl: string | null
+}
 
 type Segment = { type: 'text'; text: string } | { type: 'mention'; member: MentionMember }
 
@@ -28,21 +34,21 @@ function isWordBoundary(rest: string, len: number): boolean {
 
 /** Split a body into plain-text + matched-member segments. */
 function scanBody(text: string, members: MentionMember[]): Segment[] {
-  const named = members.filter((m) => m.name.trim().length > 0)
-  // Greedy: try the longest names first so "@Anna Lee" wins over "@Anna".
-  const sorted = [...named].sort((a, b) => b.name.length - a.name.length)
+  const named = members.filter((m) => m.handle?.trim().length > 0)
+  // Greedy: try the longest handles first so "@anna" wins over "@ann".
+  const sorted = [...named].sort((a, b) => b.handle.length - a.handle.length)
   const segments: Segment[] = []
   let buf = ''
   let i = 0
   while (i < text.length) {
     // Only an `@` at the start or after whitespace/`(` opens a mention — matches
-    // the textarea picker's trigger, so `email@Anna` isn't treated as a mention.
+    // the textarea picker's trigger, so `email@anna` isn't treated as a mention.
     const atBoundary = i === 0 || /[\s(]/.test(text[i - 1])
     if (text[i] === '@' && atBoundary) {
       const rest = text.slice(i + 1)
       const lower = rest.toLowerCase()
       const match = sorted.find(
-        (m) => lower.startsWith(m.name.toLowerCase()) && isWordBoundary(rest, m.name.length),
+        (m) => lower.startsWith(m.handle.toLowerCase()) && isWordBoundary(rest, m.handle.length),
       )
       if (match) {
         if (buf) {
@@ -50,7 +56,7 @@ function scanBody(text: string, members: MentionMember[]): Segment[] {
           buf = ''
         }
         segments.push({ type: 'mention', member: match })
-        i += 1 + match.name.length
+        i += 1 + match.handle.length
         continue
       }
     }

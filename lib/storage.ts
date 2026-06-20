@@ -13,6 +13,8 @@ import type { Database } from '@/types/database'
 type Supabase = SupabaseClient<Database>
 
 export const NOTE_BUCKET = 'note-attachments'
+/** Public bucket for member avatars — stable URLs, no signing (see ADR/CLAUDE). */
+export const AVATAR_BUCKET = 'avatars'
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024 // 5 MB
 export const ALLOWED_IMAGE_TYPES = [
   'image/png',
@@ -110,6 +112,34 @@ export async function uploadChatFile(
   })
   if (error) return { error: error.message }
   return { path }
+}
+
+/**
+ * Upload a member avatar to the PUBLIC `avatars` bucket under
+ * {workspaceId}/avatars/{userId}-{uuid}.{ext} (segment 1 = workspace_id is what
+ * storage.objects RLS checks on write). Unlike the private buckets this returns
+ * a stable PUBLIC URL (no signing, never expires) to store directly in
+ * profiles.avatar_url — every avatar render site uses <img src> as-is. The uuid
+ * busts browser cache on re-upload; the prior object is left orphaned (v1).
+ */
+export async function uploadAvatar(
+  client: Supabase,
+  opts: { workspaceId: string; userId: string; file: File },
+): Promise<{ url?: string; error?: string }> {
+  const validationError = validateImage(opts.file)
+  if (validationError) return { error: validationError }
+
+  const ext = EXT_BY_TYPE[opts.file.type] ?? 'bin'
+  const path = `${opts.workspaceId}/avatars/${opts.userId}-${crypto.randomUUID()}.${ext}`
+
+  const { error } = await client.storage.from(AVATAR_BUCKET).upload(path, opts.file, {
+    contentType: opts.file.type,
+    upsert: false,
+  })
+  if (error) return { error: error.message }
+
+  const { data } = client.storage.from(AVATAR_BUCKET).getPublicUrl(path)
+  return { url: data.publicUrl }
 }
 
 /** Mint a time-limited signed URL for a single stored path. */

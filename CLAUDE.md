@@ -36,8 +36,12 @@ Storage. Phase 6 (Glue & polish) is complete — the **FINAL** feature phase: wo
 **team chat** (`/chat`, WhatsApp-style inline quote-replies, reactions, @member-mentions,
 presence, infinite scroll, attachments, edit/delete, unread badge), **comments** on Docs
 pages + Note cards, a per-project **activity feed**, and real **⌘K global search** — all on
-Supabase Postgres Changes (NOT Yjs), reusing the Phase-5 realtime singleton. **All six v1
-modules are shipped; remaining work is UI/UX polish, not new features.**
+Supabase Postgres Changes (NOT Yjs), reusing the Phase-5 realtime singleton. Phase 7
+(Member profiles & UX polish) is complete: **editable self-profile** (display name, uploaded
+**avatar**, and a unique **`@handle`**), **handle-based @-mentions** (the handle is written into
+the message body so mentions survive name changes), an **inline topbar search dropdown** (replacing
+the centered command-palette modal), and **team/project rename + delete**. **All six v1 modules are
+shipped; remaining work is UI/UX polish, not new features.**
 
 ## Resolved product decisions (Phase 1)
 
@@ -234,9 +238,10 @@ modules are shipped; remaining work is UI/UX polish, not new features.**
   client-filters to its target. (Deleting a page/note orphans its comments — invisible, v1 tradeoff.)
 - **`@member`-mentions in textareas** (distinct from the Phase-3 page mentions inside BlockNote):
   `components/mentions` — a `<MentionTextarea>` with a caret-token `@` popup, plus
-  `extractMentionIds`/`renderMessageBody`. **Dual storage:** the body keeps the literal `@Name`
-  text (renders chips via a greedy longest-name scanner, boundary-gated so `email@Anna` isn't a
-  mention) AND a parsed `mentions uuid[]` column (validated to active members; future notifications).
+  `extractMentionIds`/`renderMessageBody`. **Dual storage:** the body keeps a literal `@…` token
+  (renders chips via a greedy longest-first scanner, boundary-gated so `email@anna` isn't a mention)
+  AND a parsed `mentions uuid[]` column (validated to active members; future notifications).
+  **Phase 7 changed the token from `@Name` → `@handle`** (stable across renames — see the Phase 7 section).
 - **Activity feed** (per-project, coarse): a best-effort `logActivity()` helper (NOT a server
   action — never throws, never blocks the mutation) called INSIDE the existing pages/databases/
   whiteboards/notes actions on create/rename/trash/restore/delete (notes only when project-filed;
@@ -247,12 +252,50 @@ modules are shipped; remaining work is UI/UX polish, not new features.**
   databases (name), database_rows (`data::text`), whiteboards (title), messages (body). Page BODIES
   are searchable via a new denormalized **`pages.search_text`** column written debounced from the
   editor onChange (alongside `syncPageLinks`) — old pages stay title-only until first edited.
-  `components/shell/command-palette.tsx` replaces the placeholder.
+  The palette replaced the Phase-1 placeholder. **(Phase 7 superseded the centered-modal palette with
+  an inline topbar search dropdown — `command-palette.tsx` was deleted; `global-search.tsx` owns it.)**
 - **Gotchas found verifying:** (1) `lib/use-workspace-presence.ts` is now a **ref-counted
   singleton** — the chat header + the topbar both mount it, and two channels on the same
   `presence:{ws}` topic threw "cannot add presence callbacks after subscribe()". (2) Chat message
   time renders **client-only** (a `ClockTime` component) — `toLocaleTimeString` is locale/TZ-
   dependent and the initial messages are SSR'd, so server text mismatched the browser on hydration.
+
+## Resolved product decisions (Phase 7 — Member profiles & UX polish)
+
+- **Editable self-profile (self-only).** Each member edits their OWN `full_name`, `avatar_url`, and a
+  new `profiles.handle` via an **"Edit profile"** item in the avatar menu → `<ProfileModal>`
+  (`components/shell/profile-modal.tsx`). The action is `updateProfile` in `lib/actions/auth.ts`
+  (gated by `verifySession`; `profiles_update_self` RLS already permits self-updates — **no new table
+  RLS**). Owner does NOT edit others (parity with the rest of the app).
+- **Mention handle = `profiles.handle`** — unique, lowercase, `^[a-z0-9_]{3,20}$` (enforced by a
+  CHECK + `unique(lower(handle))`). Every member always has one: `generate_handle()` backfills
+  existing rows and the `handle_new_user` signup trigger assigns one (from full_name/email local-part,
+  deduped). Friendly `23505` → "handle already taken".
+- **Handle-in-body mentions (supersedes the Phase-6 `@Name` scheme).** The member-mention scanner
+  (`components/mentions/mention-utils.tsx`) now matches the **handle** at each `@` (longest-first,
+  word-boundary) and writes `@handle` into the body — so a mention **survives display-name changes**;
+  the rendered chip still shows the friendly **display name**. The picker (`mention-textarea.tsx`)
+  filters by handle OR name but inserts the handle. `MentionMember`/`DbMember` gained `handle`;
+  `loadWorkspaceMembers` selects it. **Tradeoff:** messages authored before Phase 7 stored `@Name`
+  and now render as plain text (no backfill — fine for a near-empty workspace).
+- **Avatars → a NEW PUBLIC `avatars` Storage bucket** (NOT the private `note-attachments`).
+  `lib/storage.ts` `uploadAvatar` returns a **stable public URL** stored directly in
+  `profiles.avatar_url` — every avatar render site already does `<img src={avatarUrl}>`, so **zero
+  signing changes** (OAuth URLs coexist; both are plain URLs). Path `{ws}/avatars/{userId}-{uuid}.ext`
+  (uuid busts cache; old object orphaned, v1). Object-write RLS is in the migration; the **bucket is
+  created manually** (public, 5 MB).
+- **Inline global search (replaces the centered command-palette modal).** `components/shell/global-
+  search.tsx` is now a real `<input>` with a results dropdown anchored beneath it; ⌘K **focuses** it
+  (no longer toggles a modal). `command-palette.tsx` was **deleted** (its `globalSearch` + `hrefFor`
+  logic moved in). The per-page "Search notes" box on `/notes` is a separate LOCAL filter, untouched.
+- **Team/project rename + delete.** `renameTeam`/`deleteTeam`/`renameProject` in
+  `lib/actions/workspace.ts` (+ the pre-existing `deleteProject`), surfaced via a reusable
+  `<EntitySettingsMenu>` (`components/shell/entity-settings-menu.tsx`) on the team page and project
+  Docs-home headers. Authz mirrors RLS: rename/delete team + delete project = **owner**; rename
+  project = any member. Deleting a team cascades to its projects (FK `on delete cascade`).
+- **Migration `…170000_profiles_handles.sql`** (handle column + index + CHECK, `generate_handle()`,
+  backfill, updated `handle_new_user`, `avatars` bucket object policies). `types/database.ts` gained
+  `handle` on profiles Row/Insert/Update.
 
 ## Next.js 16 gotchas (this is NOT the Next.js in your training data)
 
@@ -284,8 +327,10 @@ the `purge_whiteboard_yjs` AFTER-DELETE trigger that drops the `doc_type='whiteb
 snapshot) + `…160000_glue.sql` (Phase 6: `messages` / `message_reactions` / `message_reads` /
 `comments` / `activity_log` — author-scoped edit/delete + owner-delete RLS, realtime publication
 + replica identity full, the `pages.search_text` column, and the `global_search` SECURITY-DEFINER
-RPC). Never write inline SQL in chat — add a
-new timestamped migration file. **New tables created in a later migration need an explicit
+RPC) + `…170000_profiles_handles.sql` (Phase 7: `profiles.handle` column + `unique(lower(handle))`
++ format CHECK, `generate_handle()` fn, backfill, updated `handle_new_user` trigger, and
+`storage.objects` write policies for the PUBLIC `avatars` bucket). Never write inline SQL in chat —
+add a new timestamped migration file. **New tables created in a later migration need an explicit
 `grant … to authenticated`** (init's blanket grant was a one-time snapshot).
 
 ## Yjs ↔ Supabase Realtime sync model
@@ -346,7 +391,7 @@ lib/
   activity/ load-activity        per-project activity feed loader
   search/ search                 globalSearch RPC client (dedupe + group)
   realtime/ workspace-tables   ONE shared postgres_changes channel per workspace (pool-safe)
-  storage.ts                  uploadFile / uploadDocFile / uploadChatFile / getSignedUrl(s) / deleteFile (ADR 0001 seam)
+  storage.ts                  uploadFile / uploadDocFile / uploadChatFile / uploadAvatar (public bucket) / getSignedUrl(s) / deleteFile (ADR 0001 seam)
   format-time.ts              timeAgo / clockTime (chat/comments/activity)
   presence.ts | use-workspace-presence.ts (ref-counted singleton)
 components/ auth | onboarding | members | shell | collab | notes | docs | databases | whiteboards
@@ -354,7 +399,8 @@ components/ auth | onboarding | members | shell | collab | notes | docs | databa
             (docs = BlockNote editor + databaseEmbed + whiteboardEmbed; databases =
             DatabaseView/Table/Board/cells; whiteboards = WhiteboardView/WhiteboardCanvas;
             chat = ChatView/timeline/message-row/composer; comments = CommentsPanel;
-            mentions = MentionTextarea + render/extract; shell += command-palette + chat-unread-badge)
+            mentions = MentionTextarea + render/extract; shell += global-search (inline
+            dropdown) + profile-modal + entity-settings-menu + chat-unread-badge)
 supabase/migrations/          the schema + RLS migration(s)
 types/database.ts             regenerate: supabase gen types typescript --linked > types/database.ts
 ```
@@ -383,6 +429,9 @@ server-only — never `NEXT_PUBLIC_`). Set all three in `.env.local` and in Verc
    Just `supabase db push` the new migrations + regenerate types (`supabase gen types typescript
    --linked > types/database.ts`, then re-add the hand-authored `MemberRole`/`MembershipStatus`
    aliases the generator drops).
+8. **(Phase 7)** Storage → New bucket → **`avatars`**, **PUBLIC**, 5 MB limit — member avatar
+   uploads. Public ⇒ stable URLs stored in `profiles.avatar_url` (no signing); the bucket's
+   write/delete object policies ship in `…170000_profiles_handles.sql`, only the bucket is manual.
 
 ## Test ritual: "open two browser windows" (verify realtime before declaring done)
 

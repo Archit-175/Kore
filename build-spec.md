@@ -144,6 +144,25 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 > mirror + a `global_search` SECURITY-DEFINER RPC. Verified single-window; the two-window
 > simultaneous-member ritual is the final manual check.
 
+### 4.7 Member Profiles & UX polish — ✅ COMPLETE (Phase 7)
+- **Editable self-profile** (self-only, from the avatar menu): display name, avatar **image upload**,
+  and a **mention handle** ✅
+- **Mention handle** = a unique, lowercase nickname (`[a-z0-9_]`, 3–20 chars) used in `@`-mentions —
+  picking `@archit` writes the **handle** into the body, so mentions stay valid across name changes ✅
+- **Avatar upload** to a new **public `avatars` Storage bucket** (stable public URL in
+  `profiles.avatar_url`; no signing) ✅
+- **Inline global search** — the topbar box is now a real input with a results dropdown beneath it
+  (⌘K focuses it); the old centered command-palette modal was removed ✅
+- **Team / project rename + delete** from the team page and project Docs-home headers (owner-gated
+  per RLS) ✅
+
+> Per-member identity finally became editable: name, uploaded avatar, and a stable `@handle` for
+> mentions (handle-in-body, chip shows the display name). All member-mention logic lives in
+> `components/mentions/*` — only the scanner + picker changed. The confusing "two search boxes" was
+> resolved by turning the topbar pill into the actual search input. New migration
+> `20260620170000_profiles_handles.sql` (handle column + `generate_handle()` + backfill + signup-
+> trigger update + `avatars` bucket policies); the bucket itself is created manually (public, 5 MB).
+
 ---
 
 ## 5. Suggested Data Model (Postgres / Supabase)
@@ -153,7 +172,7 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 > (✅ marks shipped). Later-phase tables are still suggestions.
 
 - **users** — handled by Supabase Auth
-- **profiles** ✅ — `id`→auth.users, `email`, `full_name`, `avatar_url` (mirror, via auth trigger)
+- **profiles** ✅ — `id`→auth.users, `email`, `full_name`, `avatar_url`, `handle` (unique lowercase mention nickname — *Phase 7*) (mirror, via auth trigger)
 - **workspaces** ✅ — `id`, `name`, `owner_id`
 - **teams** ✅ — `id`, `workspace_id`, `name`, `icon`, `position` *(org grouping inside workspace)*
 - **memberships** ✅ — `id`, `workspace_id`, `user_id` (null while an invite is unclaimed), `invited_email`, `role` (**owner/editor**), `status` (**pending** = invited, not signed up · **requested** = self-requested, awaiting approval · **active**). Invite → auto-join on signup (or instant link if the account already exists); uninvited signup → join request the owner approves.
@@ -197,6 +216,10 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
    comments on Docs pages + Note cards, per-project activity feed, ⌘K global search (replacing the
    placeholder; full Docs-body search via `pages.search_text`), mobile QA — all on Postgres
    Changes reusing the Phase-5 realtime singleton.
+7. **Member profiles & UX polish** — ✅ **COMPLETE.** Editable self-profile (display name, uploaded
+   avatar, unique `@handle`); handle-based @-mentions (stable across name changes); inline topbar
+   search dropdown (replacing the centered command-palette modal); team/project rename + delete.
+   New migration `20260620170000_profiles_handles.sql` + a manual public `avatars` bucket.
 
 ---
 
@@ -214,12 +237,14 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 1. Create a **Supabase** account + project (free) — get URL + anon/service keys.
 2. Enable **Google OAuth** provider in Supabase Auth (needs a Google Cloud OAuth client).
 3. Create a **Vercel** account, connect the GitHub repo for deploy.
-4. (Optional, later) Create **Google Cloud Storage** bucket only if 1 GB is exceeded.
+4. Storage → New bucket → **`note-attachments`** (private, 5 MB) — *Phase 2*.
+5. Storage → New bucket → **`avatars`** (**public**, 5 MB) — member avatar uploads, *Phase 7*.
+6. (Optional, later) Create **Google Cloud Storage** bucket only if 1 GB is exceeded.
 
 ---
 
-*End of spec. **All six phases (1–6) are complete** — Kore v1 is feature-complete
-(Foundation, Notes, Docs, Databases, Whiteboard, and Glue & polish: chat + comments +
-activity + ⌘K search). Remaining work is UI/UX polish, not new features.
+*End of spec. **All seven phases (1–7) are complete** — Kore v1 is feature-complete
+(Foundation, Notes, Docs, Databases, Whiteboard, Glue & polish: chat + comments + activity +
+⌘K search, and Member profiles & UX polish). Remaining work is UI/UX polish, not new features.
 See `CLAUDE.md` for the locked stack, folder structure, RLS convention, and the
 two-browser realtime test ritual.*
