@@ -25,17 +25,20 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 | Mobile | **Fully responsive** | Tailwind responsive design throughout; touch-friendly |
 | Real-time transport | **Yjs over Supabase Realtime (Option A)** | No separate WebSocket server, stays in free tier |
 | Team size | **Under 10 users** | No heavy scaling infrastructure needed |
-| Roles | **Owner / Editor / Viewer** | Simple permission model |
+| Roles | **Owner / Editor** (no Viewer) — *finalized Phase 1* | Single owner/admin; everyone else edits |
+| Structure | **One workspace → Teams → Projects** — *finalized Phase 1* | Teams are organizational grouping only — **no visibility walls**; every member sees/edits all content |
+| Access | **Invite-gated + request-to-join** — *finalized Phase 1* | Owner pre-authorizes emails (auto-join on signup); uninvited signups become a join request the owner approves on `/members`. No email-sending service ($0) |
 
 ---
 
 ## 3. Tech Stack (Locked)
 
-- **Framework / Hosting:** Next.js + TypeScript → Vercel (Hobby, free)
+- **Framework / Hosting:** Next.js **16** + TypeScript → Vercel (Hobby, free). App Router, Turbopack.
+  - ⚠️ Next.js 16 differs from older versions: `middleware.ts` is renamed to **`proxy.ts`** (Node.js runtime); `params`/`searchParams` are **Promises** (await them); client-only libs use `dynamic(..., { ssr:false })`.
 - **Database + Auth + Realtime:** Supabase (free tier)
   - Postgres (500 MB)
-  - Supabase Auth (email/password + Google OAuth)
-  - Supabase Realtime (used as the Yjs transport)
+  - Supabase Auth (email/password + Google OAuth). Uses the **new key format**: `sb_publishable_…` (anon/public) + `sb_secret_…` (service role, server-only).
+  - Supabase Realtime (used as the Yjs transport — **broadcast on private channels**, gated by RLS on `realtime.messages`). Note: `realtime.setAuth()` is async — `await` it before `subscribe()`.
 - **Styling:** Tailwind CSS (responsive-first)
 - **Block editor:** BlockNote (open source, native Yjs support)
 - **Whiteboard:** `@excalidraw/excalidraw` (open source, native collaboration)
@@ -47,15 +50,20 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 
 ## 4. Feature Set (v1 Scope)
 
-### 4.1 Foundation (build first)
-- Supabase Auth: email/password + Google OAuth
-- One workspace containing multiple **projects**
-- Invite members by email
-- 3 roles: **Owner, Editor, Viewer** (enforced via Postgres Row Level Security)
-- Yjs sync layer wired over Supabase Realtime
-- Presence: live cursors + "who's online" indicators
-- App shell: unified collapsible sidebar (mobile-friendly), global search, dark/light mode
-- Favorites and recents
+### 4.1 Foundation — ✅ COMPLETE (Phase 1, verified)
+- Supabase Auth: email/password + Google OAuth ✅
+- One workspace → **Teams** (org grouping) → **Projects** ✅
+- Members join by **invite** (owner pre-authorizes → auto-join) or **request** (uninvited signup → owner approves on `/members`) ✅
+- **2 roles: Owner, Editor** (no Viewer) enforced via Postgres Row Level Security ✅
+- Yjs sync layer wired over Supabase Realtime (broadcast + full-state LWW snapshots) ✅
+- Presence: live cursors + "who's online" indicators ✅
+- App shell: unified collapsible sidebar (mobile-friendly), global search **placeholder**, dark/light mode ✅
+- Favorites and recents ✅
+
+> Verified via the two-browser ritual: edit syncs, live named cursors, who's-online
+> avatars, clean disconnect. The reusable collaboration hook (`lib/yjs/use-kore-ydoc.ts`)
+> is what BlockNote (Phase 3) and Excalidraw (Phase 5) bind to. Global search is a
+> placeholder to be wired up later.
 
 ### 4.2 Notes (Google Keep)
 - Card-based notes with color options
@@ -102,18 +110,24 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 ## 5. Suggested Data Model (Postgres / Supabase)
 
 > Starting point — Claude Code may refine. Enable Row Level Security on all tables.
+> **Phase 1 tables below are final** and live in `supabase/migrations/20260620090000_init.sql`
+> (✅ marks shipped). Later-phase tables are still suggestions.
 
 - **users** — handled by Supabase Auth
-- **workspaces** — `id`, `name`, `owner_id`
-- **memberships** — `user_id`, `workspace_id`, `role` (owner/editor/viewer)
-- **projects** — `id`, `workspace_id`, `name`, `icon`
+- **profiles** ✅ — `id`→auth.users, `email`, `full_name`, `avatar_url` (mirror, via auth trigger)
+- **workspaces** ✅ — `id`, `name`, `owner_id`
+- **teams** ✅ — `id`, `workspace_id`, `name`, `icon`, `position` *(org grouping inside workspace)*
+- **memberships** ✅ — `id`, `workspace_id`, `user_id` (null while an invite is unclaimed), `invited_email`, `role` (**owner/editor**), `status` (**pending** = invited, not signed up · **requested** = self-requested, awaiting approval · **active**). Invite → auto-join on signup (or instant link if the account already exists); uninvited signup → join request the owner approves.
+- **projects** ✅ — `id`, `workspace_id`, `team_id`, `name`, `icon` *(belongs to a team)*
+- **favorites / recents** ✅ — per-user `(user_id, target_type, target_id)` lists
+- **yjs_documents** ✅ — `(doc_type, doc_id)` PK, `workspace_id`, `state` (bytea full snapshot), `seq`. **One unified table** for every collaborative doc (LWW snapshots) — supersedes per-table `yjs_doc` columns below. Phase 1 uses `doc_type='scratchpad'`; pages/whiteboards add `doc_type='page'`/`'whiteboard'`.
 - **notes** — `id`, `project_id`, `color`, `pinned`, `archived`, `trashed`, `content`, `created_by`
 - **note_checklist_items** — `id`, `note_id`, `text`, `checked`, `position`
 - **labels** + **note_labels** (join)
-- **pages** — `id`, `project_id`, `parent_page_id`, `title`, `icon`, `yjs_doc` (binary/text)
+- **pages** — `id`, `project_id`, `parent_page_id`, `title`, `icon` (Yjs state lives in **yjs_documents**, `doc_type='page'`)
 - **databases** — `id`, `project_id`, `name`, `view_type`
 - **database_rows** + **database_properties**
-- **whiteboards** — `id`, `project_id`, `title`, `yjs_doc`
+- **whiteboards** — `id`, `project_id`, `title` (Yjs state lives in **yjs_documents**, `doc_type='whiteboard'`)
 - **comments** — `id`, `target_type`, `target_id`, `author_id`, `body`, `parent_id`
 - **messages** — `id`, `workspace_id`, `author_id`, `body`, `parent_message_id` (null = top-level, set = thread reply), `edited_at`, `created_at`
 - **message_reactions** — `id`, `message_id`, `user_id`, `emoji`
@@ -125,8 +139,8 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 
 ## 6. Build Phases (in order)
 
-1. **Foundation** — Supabase project setup, Auth (email + Google), workspace/projects, memberships + roles with RLS, Yjs ↔ Supabase Realtime sync layer, responsive app shell (sidebar, search, dark mode)
-2. **Notes module** — cards, colors, labels, pin, checklists, image upload, archive/trash, grid/list toggle
+1. **Foundation** — ✅ **COMPLETE & VERIFIED.** Supabase setup, Auth (email + Google), workspace/teams/projects, memberships + roles (owner/editor) with RLS, Yjs ↔ Supabase Realtime sync layer + presence, responsive app shell (sidebar, search placeholder, dark mode), favorites/recents.
+2. **Notes module** — ⬅️ **NEXT.** cards, colors, labels, pin, checklists, image upload, archive/trash, grid/list toggle
 3. **Docs + block editor** — BlockNote integration, nested pages, slash commands, drag-reorder, mentions/backlinks
 4. **Databases** — table view, board (kanban) view, properties
 5. **Whiteboard** — Excalidraw canvas, real-time collab, embed-in-page, export
@@ -152,4 +166,6 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 
 ---
 
-*End of spec. Edit any section above, then hand to Claude Code to begin Phase 1.*
+*End of spec. **Phase 1 is complete & verified** — start the next session at Phase 2 (Notes).
+See `CLAUDE.md` for the locked stack, folder structure, RLS convention, and the
+two-browser realtime test ritual.*

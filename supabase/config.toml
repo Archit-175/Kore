@@ -1,0 +1,4 @@
+# Minimal Supabase CLI config. `supabase link --project-ref <ref>` will fill in
+# the rest for your CLI version. The project_id is the ref from your project URL
+# (https://<ref>.supabase.co).
+project_id = "arwkeysqybxakclcovoc"

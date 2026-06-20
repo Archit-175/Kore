@@ -45,3 +45,8 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
