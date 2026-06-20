@@ -65,14 +65,19 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 > is what BlockNote (Phase 3) and Excalidraw (Phase 5) bind to. Global search is a
 > placeholder to be wired up later.
 
-### 4.2 Notes (Google Keep)
-- Card-based notes with color options
-- Labels / tags
-- Pin to top
-- Checklists (to-do items)
-- Image attachments (Supabase Storage)
-- Archive and Trash (with restore)
-- Grid / list view toggle (responsive on mobile)
+### 4.2 Notes (Google Keep) — ✅ COMPLETE (Phase 2, verified)
+- Card-based notes with color options ✅
+- Labels / tags (workspace-wide shared) ✅
+- Pin to top ✅
+- Checklists (to-do items) ✅
+- Image attachments (Supabase Storage, private `note-attachments` bucket) ✅
+- Archive and Trash (with restore); permanent delete + empty-trash are owner-only ✅
+- Grid / list view toggle (responsive on mobile) ✅
+
+> Workspace-wide board at `/notes` (notes also carry a nullable `project_id`). Live sync
+> via **Supabase Postgres Changes** (plain rows, not Yjs) — verified with the two-browser
+> ritual. Files go through the single `lib/storage.ts` seam (ADR 0001) as a stored object
+> path + server-minted signed URLs, keeping the GCS swap a one-file change.
 
 ### 4.3 Docs (Notion)
 - BlockNote block editor: text, headings, bulleted/numbered lists, toggle, callout, code, divider, quote
@@ -121,9 +126,9 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 - **projects** ✅ — `id`, `workspace_id`, `team_id`, `name`, `icon` *(belongs to a team)*
 - **favorites / recents** ✅ — per-user `(user_id, target_type, target_id)` lists
 - **yjs_documents** ✅ — `(doc_type, doc_id)` PK, `workspace_id`, `state` (bytea full snapshot), `seq`. **One unified table** for every collaborative doc (LWW snapshots) — supersedes per-table `yjs_doc` columns below. Phase 1 uses `doc_type='scratchpad'`; pages/whiteboards add `doc_type='page'`/`'whiteboard'`.
-- **notes** — `id`, `project_id`, `color`, `pinned`, `archived`, `trashed`, `content`, `created_by`
-- **note_checklist_items** — `id`, `note_id`, `text`, `checked`, `position`
-- **labels** + **note_labels** (join)
+- **notes** ✅ — `id`, `workspace_id`, `project_id` (nullable), `title`, `content`, `color`, `pinned`, `archived_at`, `trashed_at`, `created_by` *(status = two nullable timestamps, not booleans)*
+- **note_checklist_items** ✅ — `id`, `note_id`, `workspace_id`, `text`, `checked`, `position`
+- **labels** ✅ + **note_labels** ✅ (join) — both `workspace_id`-scoped; labels are workspace-wide shared
 - **pages** — `id`, `project_id`, `parent_page_id`, `title`, `icon` (Yjs state lives in **yjs_documents**, `doc_type='page'`)
 - **databases** — `id`, `project_id`, `name`, `view_type`
 - **database_rows** + **database_properties**
@@ -133,15 +138,15 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 - **message_reactions** — `id`, `message_id`, `user_id`, `emoji`
 - **message_reads** — `user_id`, `last_read_message_id` (for unread indicator)
 - **activity_log** — `id`, `project_id`, `actor_id`, `action`, `target`, `created_at`
-- **attachments** — `id`, `url`, `target_type`, `target_id` (URL points to Supabase Storage or GCS)
+- **attachments** ✅ — `id`, `workspace_id`, `url`, `target_type`, `target_id`, `mime_type` (`url` stores the storage object PATH; signed URLs minted on read via `lib/storage.ts`)
 
 ---
 
 ## 6. Build Phases (in order)
 
 1. **Foundation** — ✅ **COMPLETE & VERIFIED.** Supabase setup, Auth (email + Google), workspace/teams/projects, memberships + roles (owner/editor) with RLS, Yjs ↔ Supabase Realtime sync layer + presence, responsive app shell (sidebar, search placeholder, dark mode), favorites/recents.
-2. **Notes module** — ⬅️ **NEXT.** cards, colors, labels, pin, checklists, image upload, archive/trash, grid/list toggle
-3. **Docs + block editor** — BlockNote integration, nested pages, slash commands, drag-reorder, mentions/backlinks
+2. **Notes module** — ✅ **COMPLETE & VERIFIED.** cards, colors, labels, pin, checklists, image upload, archive/trash, grid/list toggle; workspace-wide board with Postgres-Changes realtime.
+3. **Docs + block editor** — ⬅️ **NEXT.** BlockNote integration, nested pages, slash commands, drag-reorder, mentions/backlinks
 4. **Databases** — table view, board (kanban) view, properties
 5. **Whiteboard** — Excalidraw canvas, real-time collab, embed-in-page, export
 6. **Glue & polish** — comments + mentions, team chat (global channel + threads + reactions), activity feed, global search refinement, mobile QA
@@ -166,6 +171,6 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 
 ---
 
-*End of spec. **Phase 1 is complete & verified** — start the next session at Phase 2 (Notes).
+*End of spec. **Phases 1 & 2 are complete & verified** — start the next session at Phase 3 (Docs + BlockNote).
 See `CLAUDE.md` for the locked stack, folder structure, RLS convention, and the
 two-browser realtime test ritual.*

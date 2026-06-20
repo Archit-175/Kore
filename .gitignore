@@ -50,3 +50,8 @@ Thumbs.db
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# Supabase CLI (local link cache, branches, generated env)
+supabase/.temp/
+supabase/.branches/
+supabase/.env

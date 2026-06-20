@@ -19,7 +19,9 @@ team chat) for a single team of under 10 people. Mobile-responsive throughout.
 
 Build in the phases defined in `build-spec.md`, **one phase per session** — do not jump
 ahead. Phase 1 (Foundation) is complete: auth, workspace/teams/projects, RLS, the
-Yjs↔Realtime sync layer, presence, and the app shell.
+Yjs↔Realtime sync layer, presence, and the app shell. Phase 2 (Notes) is complete: the
+workspace-wide `/notes` board (colors, labels, pin, checklists, image attachments,
+archive/trash, grid/list). **Next = Phase 3 (Docs + BlockNote).**
 
 ## Resolved product decisions (Phase 1)
 
@@ -34,6 +36,25 @@ Yjs↔Realtime sync layer, presence, and the app shell.
   (invited, not signed up yet) · `requested` (awaiting approval) · `active`. Inviting an
   email that already has an account links it immediately (`invite_member` RPC). No
   email-sending service ($0).
+
+## Resolved product decisions (Phase 2 — Notes)
+
+- **Scope:** one **workspace-wide board** at `/notes` (Keep-style). Notes carry a *nullable*
+  `project_id` (optional "file under a project") + a denormalized `workspace_id` for
+  single-hop RLS and the realtime filter.
+- **Realtime = Supabase Postgres Changes**, NOT Yjs/broadcast. Notes are plain rows; the
+  client subscribes to `notes` / `note_checklist_items` / `note_labels` / `labels`
+  (filtered `workspace_id=eq.{ws}`) and does a debounced full-board refetch. The new tables
+  are in the `supabase_realtime` publication (added in the migration) with `replica
+  identity full` — distinct from `yjs_documents`, which stays broadcast-only.
+- **Trash/delete:** any member archives/trashes/restores (reversible UPDATEs to
+  `archived_at`/`trashed_at`); **permanent delete + empty-trash + label delete are
+  owner-only** (mirrors `projects_delete`).
+- **Labels** are workspace-wide shared (`labels` + `note_labels`).
+- **Mutations** go through `lib/actions/notes.ts` (DAL-gated). The board owns optimistic
+  state + realtime, so note actions deliberately **skip `revalidatePath`**. The editor
+  modal seeds title/content into local state and syncs remote edits in **only when the
+  field isn't `document.activeElement`** (live, but never clobbers active typing).
 
 ## Next.js 16 gotchas (this is NOT the Next.js in your training data)
 
@@ -53,8 +74,11 @@ Every table has RLS **enabled**, with policies. Membership checks go through
 `current_user_role`, `are_co_members`) so policies never recurse. Schema + policies live
 in `supabase/migrations/`: `20260620090000_init.sql` (schema, RLS, triggers, RPCs) +
 `…_invite_existing_users.sql` (`invite_member`) + `…_join_requests.sql` (request-to-join,
-`request_access`/`my_membership_status`, `requested` status). Never write inline SQL in
-chat — add a new timestamped migration file.
+`request_access`/`my_membership_status`, `requested` status) + `…120000_notes.sql` (notes
+tables, RLS, `supabase_realtime` publication + `replica identity full`, `empty_trash`,
+`storage.objects` policies for `note-attachments`). Never write inline SQL in chat — add a
+new timestamped migration file. **New tables created in a later migration need an explicit
+`grant … to authenticated`** (init's blanket grant was a one-time snapshot).
 
 ## Yjs ↔ Supabase Realtime sync model
 
@@ -81,14 +105,16 @@ app/
   login | signup              public auth pages
   auth/callback/route.ts      OAuth / email-confirmation code exchange
   (onboarding)/               authed but no membership: setup, request-access
-  (app)/                      authed + member: home, t/[teamId], p/[projectId], members
+  (app)/                      authed + member: home, t/[teamId], p/[projectId], members, notes
 lib/
   supabase/ client|server|proxy.ts
   dal.ts                      verifySession / requireMember / requireOwner / getPresenceUser
-  actions/ auth.ts | workspace.ts        server actions
+  actions/ auth.ts | workspace.ts | notes.ts     server actions
   yjs/ provider | awareness | snapshot | use-kore-ydoc | encoding
+  notes/ colors | types | load-board     notes board data + palette + aggregate types
+  storage.ts                  uploadFile / getSignedUrl(s) / deleteFile (ADR 0001 seam)
   presence.ts | use-workspace-presence.ts
-components/ auth | onboarding | members | shell | collab + theme-provider/-toggle
+components/ auth | onboarding | members | shell | collab | notes + theme-provider/-toggle
 supabase/migrations/          the schema + RLS migration(s)
 types/database.ts             regenerate: supabase gen types typescript --linked > types/database.ts
 ```
@@ -105,9 +131,13 @@ server-only — never `NEXT_PUBLIC_`). Set all three in `.env.local` and in Verc
 1. Auth → Providers: enable **Email** + **Google** (paste Google OAuth client id/secret).
 2. Auth → URL config: Site URL + redirect URLs include `/auth/callback` (localhost + Vercel).
 3. **Realtime → enable Realtime Authorization (private channels)** so `realtime.messages`
-   policies apply. Do NOT enable Postgres-changes replication for `yjs_documents`.
+   policies apply. Do NOT enable Postgres-changes replication for `yjs_documents` (the
+   notes tables ARE published, but via the migration, not the dashboard).
 4. Apply the migration: `supabase link --project-ref <ref>` → `supabase db push`.
 5. After the first owner signs up, they hit `/setup` once to create the workspace.
+6. **(Phase 2)** Storage → New bucket → **`note-attachments`**, **private**, 5 MB limit
+   (MIME restriction optional — the client validates png/jpeg/webp/gif). The bucket's
+   object RLS policies ship in the notes migration; only the bucket itself is manual.
 
 ## Test ritual: "open two browser windows" (verify realtime before declaring done)
 
@@ -118,7 +148,9 @@ avatar disappear. Never call a realtime change done without this two-window chec
 
 ## Storage → GCS swap path
 
-Files are referenced by **URL in Postgres** (`attachments.url`), so swapping Supabase
-Storage (1 GB free) for Google Cloud Storage (5 GB always-free) is a small change to the
-upload/sign helper, not a rebuild. Do NOT use the Google Drive API. See
+Files are referenced by an **object path in Postgres** (`attachments.url` holds the path,
+not a signed URL), so swapping Supabase Storage (1 GB free) for Google Cloud Storage (5 GB
+always-free) is a reimplementation of the single `lib/storage.ts` helper
+(`uploadFile`/`getSignedUrl(s)`/`deleteFile`), not a rebuild — components depend on that
+interface. Signed URLs are minted on read. Do NOT use the Google Drive API. See
 `docs/adr/0001-storage-supabase-to-gcs.md`.

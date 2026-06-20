@@ -165,6 +165,122 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['yjs_documents']['Insert']>
         Relationships: []
       }
+      notes: {
+        Row: {
+          id: string
+          workspace_id: string
+          project_id: string | null
+          title: string
+          content: string
+          color: string
+          pinned: boolean
+          sort: number | null
+          archived_at: string | null
+          trashed_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          project_id?: string | null
+          title?: string
+          content?: string
+          color?: string
+          pinned?: boolean
+          sort?: number | null
+          archived_at?: string | null
+          trashed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['notes']['Insert']>
+        Relationships: []
+      }
+      note_checklist_items: {
+        Row: {
+          id: string
+          note_id: string
+          workspace_id: string
+          text: string
+          checked: boolean
+          position: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          note_id: string
+          workspace_id: string
+          text?: string
+          checked?: boolean
+          position?: number
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['note_checklist_items']['Insert']>
+        Relationships: []
+      }
+      labels: {
+        Row: {
+          id: string
+          workspace_id: string
+          name: string
+          color: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          name: string
+          color?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['labels']['Insert']>
+        Relationships: []
+      }
+      note_labels: {
+        Row: {
+          note_id: string
+          label_id: string
+          workspace_id: string
+          created_at: string
+        }
+        Insert: {
+          note_id: string
+          label_id: string
+          workspace_id: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['note_labels']['Insert']>
+        Relationships: []
+      }
+      attachments: {
+        Row: {
+          id: string
+          workspace_id: string
+          url: string
+          target_type: string
+          target_id: string
+          mime_type: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          url: string
+          target_type: string
+          target_id: string
+          mime_type?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['attachments']['Insert']>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -216,6 +332,10 @@ export type Database = {
       load_yjs_snapshot: {
         Args: { p_doc_type: string; p_doc_id: string }
         Returns: string | null
+      }
+      empty_trash: {
+        Args: Record<string, never>
+        Returns: undefined
       }
     }
     Enums: {

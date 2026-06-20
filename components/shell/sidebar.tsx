@@ -73,6 +73,18 @@ export function Sidebar({
         <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-indigo-600 text-sm font-bold text-white">
           {data.workspaceName.slice(0, 1).toUpperCase()}
         </div>
+        <Link
+          href="/notes"
+          onClick={onNavigate}
+          title="Notes"
+          className={`mb-1 flex h-8 w-8 items-center justify-center rounded-md text-xs transition ${
+            pathname === '/notes'
+              ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300'
+              : 'text-neutral-600 hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/10'
+          }`}
+        >
+          🗒
+        </Link>
         {data.projects.map((p) => {
           const href = `/p/${p.id}`
           const active = pathname === href
@@ -108,6 +120,17 @@ export function Sidebar({
         </span>
         <span className="truncate text-sm font-semibold">{data.workspaceName}</span>
       </Link>
+
+      <div>
+        <SectionLabel>Workspace</SectionLabel>
+        <NavLink
+          href="/notes"
+          label="Notes"
+          icon="🗒"
+          active={pathname === '/notes'}
+          onNavigate={onNavigate}
+        />
+      </div>
 
       {data.favorites.length > 0 && (
         <div>
