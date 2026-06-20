@@ -23,7 +23,9 @@ export default async function MembersPage() {
     .select('id, invited_email, role, status, user_id')
     .eq('workspace_id', membership.workspaceId)
     .order('created_at')
-  const rows: Row[] = data ?? []
+  // `status` is a text column (typed `string` by codegen); the DB only ever
+  // holds the three membership statuses, so this narrowing cast is safe.
+  const rows = (data ?? []) as Row[]
 
   const activeIds = rows.map((r) => r.user_id).filter((id): id is string => Boolean(id))
   const profilesById = new Map<string, { full_name: string | null; email: string }>()

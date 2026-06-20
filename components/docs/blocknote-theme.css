@@ -1,0 +1,39 @@
+/* Map BlockNote's Mantine theme onto Kore's semantic tokens. Scoped under
+   .kore-doc-editor so these rules win over @blocknote/mantine/style.css (which
+   is imported first) on specificity. Our --background / --surface / --border /
+   --foreground already flip in dark mode (the .dark class on <html>), so a
+   single mapping covers both themes; the BlockNoteView `theme` prop still
+   toggles BlockNote's internal data-color-scheme. */
+
+.kore-doc-editor .bn-container {
+  --bn-colors-editor-text: var(--foreground);
+  --bn-colors-editor-background: transparent;
+
+  --bn-colors-menu-text: var(--foreground);
+  --bn-colors-menu-background: var(--surface);
+
+  --bn-colors-tooltip-text: var(--foreground);
+  --bn-colors-tooltip-background: var(--surface);
+
+  --bn-colors-hovered-text: var(--foreground);
+  --bn-colors-hovered-background: rgba(99, 102, 241, 0.12); /* indigo-500/12 */
+
+  --bn-colors-selected-text: #ffffff;
+  --bn-colors-selected-background: #6366f1; /* indigo-500 */
+
+  --bn-colors-disabled-text: #9ca3af;
+  --bn-colors-disabled-background: var(--surface);
+
+  --bn-colors-border: var(--border);
+  --bn-colors-side-menu: #9ca3af;
+
+  --bn-font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --bn-border-radius: 0.5rem;
+}
+
+/* Let the editor surface inherit the page background and our container padding
+   (the outer max-w wrapper already provides horizontal gutters). */
+.kore-doc-editor .bn-editor {
+  background: transparent;
+  padding-inline: 0;
+}

@@ -41,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .filter((x): x is SidebarLink => x !== null)
 
   const sidebar: SidebarData = {
+    workspaceId: membership.workspaceId,
     workspaceName: membership.workspace.name,
     isOwner: membership.role === 'owner',
     teams: teams.map((t) => ({ id: t.id, name: t.name, icon: t.icon })),

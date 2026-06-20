@@ -79,14 +79,19 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 > ritual. Files go through the single `lib/storage.ts` seam (ADR 0001) as a stored object
 > path + server-minted signed URLs, keeping the GCS swap a one-file change.
 
-### 4.3 Docs (Notion)
-- BlockNote block editor: text, headings, bulleted/numbered lists, toggle, callout, code, divider, quote
-- Nested pages / sub-pages
-- Slash (`/`) commands
-- Drag-to-reorder blocks
-- **Databases** with **Table** and **Board (Kanban)** views
-- Database properties: status, tags/select, date, person
-- Page mentions and backlinks
+### 4.3 Docs (Notion) — ✅ COMPLETE (Phase 3, verified)
+- BlockNote block editor: text, headings, bulleted/numbered lists, toggle, callout, code, divider, quote ✅
+- Nested pages / sub-pages ✅
+- Slash (`/`) commands ✅
+- Drag-to-reorder blocks ✅
+- Page mentions and backlinks ✅
+- Page icons, image/file upload, trash/restore ✅
+- **Databases** with **Table** and **Board (Kanban)** views → **Phase 4**
+- Database properties: status, tags/select, date, person → **Phase 4**
+
+> Per-project BlockNote pages bound to the Phase-1 Yjs layer (`doc_type='page'`), nested tree
+> with drag-reparent, `@`-mentions + a derived `page_links` backlink graph, member trash/restore
+> (owner permanent-delete). Verified via the two-browser ritual.
 
 ### 4.4 Whiteboard (Excalidraw)
 - Infinite canvas: shapes, arrows, freehand, text, sticky notes, connectors
@@ -146,8 +151,8 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 
 1. **Foundation** — ✅ **COMPLETE & VERIFIED.** Supabase setup, Auth (email + Google), workspace/teams/projects, memberships + roles (owner/editor) with RLS, Yjs ↔ Supabase Realtime sync layer + presence, responsive app shell (sidebar, search placeholder, dark mode), favorites/recents.
 2. **Notes module** — ✅ **COMPLETE & VERIFIED.** cards, colors, labels, pin, checklists, image upload, archive/trash, grid/list toggle; workspace-wide board with Postgres-Changes realtime.
-3. **Docs + block editor** — ⬅️ **NEXT.** BlockNote integration, nested pages, slash commands, drag-reorder, mentions/backlinks
-4. **Databases** — table view, board (kanban) view, properties
+3. **Docs + block editor** — ✅ **COMPLETE & VERIFIED.** BlockNote integration, nested pages, slash commands, drag-reorder, mentions/backlinks, trash/restore, page icons, image upload
+4. **Databases** — ⬅️ **NEXT.** table view, board (kanban) view, properties
 5. **Whiteboard** — Excalidraw canvas, real-time collab, embed-in-page, export
 6. **Glue & polish** — comments + mentions, team chat (global channel + threads + reactions), activity feed, global search refinement, mobile QA
 

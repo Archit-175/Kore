@@ -4,12 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createInvite, createProject, createTeam } from '@/lib/actions/workspace'
 import { InlineCreate } from './inline-create'
+import { ProjectPagesTree } from './project-pages-tree'
 
 export type SidebarTeam = { id: string; name: string; icon: string | null }
 export type SidebarProject = { id: string; name: string; icon: string | null; teamId: string }
 export type SidebarLink = { id: string; name: string; href: string }
 
 export type SidebarData = {
+  workspaceId: string
   workspaceName: string
   isOwner: boolean
   teams: SidebarTeam[]
@@ -168,14 +170,22 @@ export function Sidebar({
             />
             <div className="ml-3 border-l border-border pl-1">
               {projects.map((p) => (
-                <NavLink
-                  key={p.id}
-                  href={`/p/${p.id}`}
-                  label={p.name}
-                  icon={p.icon ?? '·'}
-                  active={pathname === `/p/${p.id}`}
-                  onNavigate={onNavigate}
-                />
+                <div key={p.id}>
+                  <NavLink
+                    href={`/p/${p.id}`}
+                    label={p.name}
+                    icon={p.icon ?? '·'}
+                    active={pathname === `/p/${p.id}`}
+                    onNavigate={onNavigate}
+                  />
+                  <div className="ml-3 border-l border-border pl-1">
+                    <ProjectPagesTree
+                      projectId={p.id}
+                      workspaceId={data.workspaceId}
+                      onNavigate={onNavigate}
+                    />
+                  </div>
+                </div>
               ))}
               <InlineCreate
                 action={createProject}

@@ -21,7 +21,10 @@ Build in the phases defined in `build-spec.md`, **one phase per session** — do
 ahead. Phase 1 (Foundation) is complete: auth, workspace/teams/projects, RLS, the
 Yjs↔Realtime sync layer, presence, and the app shell. Phase 2 (Notes) is complete: the
 workspace-wide `/notes` board (colors, labels, pin, checklists, image attachments,
-archive/trash, grid/list). **Next = Phase 3 (Docs + BlockNote).**
+archive/trash, grid/list). Phase 3 (Docs) is complete: per-project BlockNote pages
+(nested tree, slash commands, drag-reorder, callout/divider/toggle, @-mentions + backlinks,
+trash/restore, page icons, image upload) on the Phase-1 Yjs layer. **Next = Phase 4
+(Databases — Table + Board views, properties).**
 
 ## Resolved product decisions (Phase 1)
 
@@ -55,6 +58,44 @@ archive/trash, grid/list). **Next = Phase 3 (Docs + BlockNote).**
   state + realtime, so note actions deliberately **skip `revalidatePath`**. The editor
   modal seeds title/content into local state and syncs remote edits in **only when the
   field isn't `document.activeElement`** (live, but never clobbers active typing).
+
+## Resolved product decisions (Phase 3 — Docs)
+
+- **Scope:** pages are **per-project** (`pages.project_id` NOT NULL). `/p/[projectId]` is the
+  project's Docs home (full hierarchy outline + Trash); `/p/[projectId]/[pageId]` mounts the
+  editor. The Phase-1 scratchpad demo was **retired** (the Yjs layer it proved is now exercised
+  by BlockNote — `lib/yjs/*` untouched).
+- **Pages are Yjs-collaborative** (unlike Keep notes). The block BODY lives in the unified
+  `yjs_documents` table under `doc_type='page'`; `useKoreYDoc({ docType:'page', docId:pageId })`
+  + the existing `KoreYjsProvider` do all sync/snapshots. BlockNote binds to the SAME
+  `ydoc`/`awareness`: its `collaboration` takes `{ provider:{ awareness }, fragment:
+  ydoc.getXmlFragment('document-store'), user:{name,color} }` (YSync reads only `fragment`,
+  YCursor only `provider.awareness` — confirmed in 0.51.4 source). Mount `<PageEditor key={pageId}>`.
+- **Relational envelope vs. Yjs:** the tree (`title`/`icon`/`parent_page_id`/`sort`) and the
+  derived `page_links` backlink graph are real columns synced via **Postgres Changes** (Yjs
+  state is opaque `bytea`, unscannable). `sort` is a `double` fractional rank (drag-reorder =
+  one midpoint UPDATE). Page actions in `lib/actions/pages.ts` are DAL-gated and **skip
+  `revalidatePath`** (the sidebar tree + Docs home own realtime + optimistic state).
+- **Trash (mirrors notes):** any member trashes a page + its subtree via `trashed_at` (a
+  member UPDATE, reversible: `trashPage`/`restorePage` cascade over the `page_subtree_ids`
+  SQL fn); **permanent delete + empty-trash are owner-only** (`pages_delete` policy). Live
+  loaders/mentions/backlinks filter `trashed_at is null`; the Trash UI is on the Docs home.
+- **Mentions/backlinks:** `@` picker inserts an atomic `mention` inline content (stores target
+  `pageId` + cached title; the chip resolves the LIVE title from a `useSyncExternalStore`
+  title store fed by a workspace-pages subscription). On debounced edit the editor rewrites the
+  source's `page_links` rows via `syncPageLinks`; the backlinks panel is realtime.
+- **Editor stack:** `@blocknote/core|react|mantine` `^0.51.4` (React 19 / Next 16 OK), loaded
+  with `dynamic(() => import('./page-editor'), { ssr:false })`. Only **callout** is a custom
+  block (`createReactBlockSpec`); toggle/quote/divider/code are built-in. Slash items merge the
+  callout into the localized "Basic blocks" group (else duplicate-key crash). Theme = `--bn-*`
+  CSS-var overrides → our tokens, light/dark from `useTheme()`. Image/file blocks use
+  `uploadFile`→`uploadDocFile` (stores object PATH in the `note-attachments` bucket at
+  `{ws}/pages/{pageId}/…`) + `resolveFileUrl`→`getSignedUrl`. Page icons = curated emoji
+  `IconPicker` writing `pages.icon`.
+- **`reactStrictMode:false`** (next.config.ts): StrictMode's double-invoked effects made
+  Supabase Realtime `.on()` an already-subscribed channel and left the provider stuck
+  "Connecting". All postgres_changes channels also carry a per-mount `useId()` suffix so
+  navigation never reuses a still-closing channel (page-doc-view's was workspace-constant).
 
 ## Next.js 16 gotchas (this is NOT the Next.js in your training data)
 

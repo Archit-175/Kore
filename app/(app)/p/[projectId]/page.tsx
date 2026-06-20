@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
-import { getPresenceUser, requireMember, verifySession } from '@/lib/dal'
+import { requireMember, verifySession } from '@/lib/dal'
 import { createClient } from '@/lib/supabase/server'
-import { ProjectView } from '@/components/collab/project-view'
+import { loadProjectPages, loadTrashedPages } from '@/lib/docs/load-pages'
+import { ProjectDocsHome } from '@/components/docs/project-docs-home'
 
 export default async function ProjectPage({
   params,
@@ -11,7 +12,6 @@ export default async function ProjectPage({
   const { projectId } = await params
   const membership = await requireMember()
   const user = await verifySession()
-  const presenceUser = await getPresenceUser()
   const supabase = await createClient()
 
   const { data: project } = await supabase
@@ -30,13 +30,21 @@ export default async function ProjectPage({
     .maybeSingle()
 
   const team = Array.isArray(project.teams) ? project.teams[0] : project.teams
+  const [initialPages, initialTrashed] = await Promise.all([
+    loadProjectPages(supabase, membership.workspaceId, projectId),
+    loadTrashedPages(supabase, membership.workspaceId, projectId),
+  ])
 
   return (
-    <ProjectView
-      project={{ id: project.id, name: project.name, teamName: team?.name ?? 'Team' }}
-      user={presenceUser}
+    <ProjectDocsHome
+      projectId={project.id}
+      projectName={project.name}
+      teamName={team?.name ?? 'Team'}
       workspaceId={membership.workspaceId}
+      isOwner={membership.role === 'owner'}
       isFavorite={Boolean(fav)}
+      initialPages={initialPages}
+      initialTrashed={initialTrashed}
     />
   )
 }

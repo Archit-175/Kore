@@ -1,346 +1,835 @@
-// Hand-authored to mirror supabase/migrations/20260620090000_init.sql.
-// Regenerate from the live DB with:
-//   supabase gen types typescript --linked > types/database.ts
-// Keep in sync when the schema changes.
-
-export type MemberRole = 'owner' | 'editor'
-export type MembershipStatus = 'pending' | 'requested' | 'active'
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
-      profiles: {
+      attachments: {
         Row: {
-          id: string
-          email: string
-          full_name: string | null
-          avatar_url: string | null
           created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id: string
-          email: string
-          full_name?: string | null
-          avatar_url?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['profiles']['Insert']>
-        Relationships: []
-      }
-      workspaces: {
-        Row: { id: string; name: string; owner_id: string; created_at: string }
-        Insert: { id?: string; name: string; owner_id: string; created_at?: string }
-        Update: Partial<Database['public']['Tables']['workspaces']['Insert']>
-        Relationships: []
-      }
-      teams: {
-        Row: {
-          id: string
-          workspace_id: string
-          name: string
-          icon: string | null
-          position: number
           created_by: string | null
-          created_at: string
+          id: string
+          mime_type: string | null
+          target_id: string
+          target_type: string
+          url: string
+          workspace_id: string
         }
         Insert: {
-          id?: string
-          workspace_id: string
-          name: string
-          icon?: string | null
-          position?: number
-          created_by?: string | null
           created_at?: string
+          created_by?: string | null
+          id?: string
+          mime_type?: string | null
+          target_id: string
+          target_type: string
+          url: string
+          workspace_id: string
         }
-        Update: Partial<Database['public']['Tables']['teams']['Insert']>
-        Relationships: []
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mime_type?: string | null
+          target_id?: string
+          target_type?: string
+          url?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      favorites: {
+        Row: {
+          created_at: string
+          target_id: string
+          target_type: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          target_id: string
+          target_type: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          target_id?: string
+          target_type?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favorites_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labels: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          workspace_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          workspace_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labels_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       memberships: {
         Row: {
-          id: string
-          workspace_id: string
-          user_id: string | null
-          invited_email: string
-          role: MemberRole
-          status: MembershipStatus
-          invited_by: string | null
           created_at: string
+          id: string
+          invited_by: string | null
+          invited_email: string
           joined_at: string | null
+          role: Database["public"]["Enums"]["member_role"]
+          status: string
+          user_id: string | null
+          workspace_id: string
         }
         Insert: {
-          id?: string
-          workspace_id: string
-          user_id?: string | null
-          invited_email: string
-          role?: MemberRole
-          status?: MembershipStatus
-          invited_by?: string | null
           created_at?: string
+          id?: string
+          invited_by?: string | null
+          invited_email: string
           joined_at?: string | null
+          role?: Database["public"]["Enums"]["member_role"]
+          status?: string
+          user_id?: string | null
+          workspace_id: string
         }
-        Update: Partial<Database['public']['Tables']['memberships']['Insert']>
+        Update: {
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          invited_email?: string
+          joined_at?: string | null
+          role?: Database["public"]["Enums"]["member_role"]
+          status?: string
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      note_checklist_items: {
+        Row: {
+          checked: boolean
+          created_at: string
+          id: string
+          note_id: string
+          position: number
+          text: string
+          workspace_id: string
+        }
+        Insert: {
+          checked?: boolean
+          created_at?: string
+          id?: string
+          note_id: string
+          position?: number
+          text?: string
+          workspace_id: string
+        }
+        Update: {
+          checked?: boolean
+          created_at?: string
+          id?: string
+          note_id?: string
+          position?: number
+          text?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_checklist_items_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_checklist_items_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      note_labels: {
+        Row: {
+          created_at: string
+          label_id: string
+          note_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          label_id: string
+          note_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          label_id?: string
+          note_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_labels_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_labels_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notes: {
+        Row: {
+          archived_at: string | null
+          color: string
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          pinned: boolean
+          project_id: string | null
+          sort: number | null
+          title: string
+          trashed_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          color?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          pinned?: boolean
+          project_id?: string | null
+          sort?: number | null
+          title?: string
+          trashed_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          color?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          pinned?: boolean
+          project_id?: string | null
+          sort?: number | null
+          title?: string
+          trashed_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      page_links: {
+        Row: {
+          created_at: string
+          source_page_id: string
+          target_page_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          source_page_id: string
+          target_page_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          source_page_id?: string
+          target_page_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "page_links_source_page_id_fkey"
+            columns: ["source_page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "page_links_target_page_id_fkey"
+            columns: ["target_page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "page_links_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          icon: string | null
+          id: string
+          parent_page_id: string | null
+          project_id: string
+          sort: number
+          title: string
+          trashed_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          parent_page_id?: string | null
+          project_id: string
+          sort?: number
+          title?: string
+          trashed_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          parent_page_id?: string | null
+          project_id?: string
+          sort?: number
+          title?: string
+          trashed_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pages_parent_page_id_fkey"
+            columns: ["parent_page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pages_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
         Relationships: []
       }
       projects: {
         Row: {
-          id: string
-          workspace_id: string
-          team_id: string
-          name: string
-          icon: string | null
-          position: number
+          created_at: string
           created_by: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          team_id: string
+          icon: string | null
+          id: string
           name: string
-          icon?: string | null
-          position?: number
-          created_by?: string | null
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['projects']['Insert']>
-        Relationships: []
-      }
-      favorites: {
-        Row: {
-          user_id: string
+          position: number
+          team_id: string
           workspace_id: string
-          target_type: string
-          target_id: string
-          created_at: string
         }
         Insert: {
-          user_id: string
-          workspace_id: string
-          target_type: string
-          target_id: string
           created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          position?: number
+          team_id: string
+          workspace_id: string
         }
-        Update: Partial<Database['public']['Tables']['favorites']['Insert']>
-        Relationships: []
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          position?: number
+          team_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       recents: {
         Row: {
-          user_id: string
-          workspace_id: string
-          target_type: string
           target_id: string
+          target_type: string
+          user_id: string
           visited_at: string
+          workspace_id: string
         }
         Insert: {
-          user_id: string
-          workspace_id: string
-          target_type: string
           target_id: string
+          target_type: string
+          user_id: string
           visited_at?: string
+          workspace_id: string
         }
-        Update: Partial<Database['public']['Tables']['recents']['Insert']>
+        Update: {
+          target_id?: string
+          target_type?: string
+          user_id?: string
+          visited_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          icon: string | null
+          id: string
+          name: string
+          position: number
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          position?: number
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          position?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+        }
         Relationships: []
       }
       yjs_documents: {
         Row: {
-          doc_type: string
           doc_id: string
-          workspace_id: string
-          state: string
+          doc_type: string
           seq: number
+          state: string
           updated_at: string
           updated_by: string | null
+          workspace_id: string
         }
         Insert: {
-          doc_type: string
           doc_id: string
-          workspace_id: string
-          state: string
+          doc_type: string
           seq?: number
+          state: string
           updated_at?: string
           updated_by?: string | null
-        }
-        Update: Partial<Database['public']['Tables']['yjs_documents']['Insert']>
-        Relationships: []
-      }
-      notes: {
-        Row: {
-          id: string
           workspace_id: string
-          project_id: string | null
-          title: string
-          content: string
-          color: string
-          pinned: boolean
-          sort: number | null
-          archived_at: string | null
-          trashed_at: string | null
-          created_by: string | null
-          created_at: string
-          updated_at: string
         }
-        Insert: {
-          id?: string
-          workspace_id: string
-          project_id?: string | null
-          title?: string
-          content?: string
-          color?: string
-          pinned?: boolean
-          sort?: number | null
-          archived_at?: string | null
-          trashed_at?: string | null
-          created_by?: string | null
-          created_at?: string
+        Update: {
+          doc_id?: string
+          doc_type?: string
+          seq?: number
+          state?: string
           updated_at?: string
+          updated_by?: string | null
+          workspace_id?: string
         }
-        Update: Partial<Database['public']['Tables']['notes']['Insert']>
-        Relationships: []
-      }
-      note_checklist_items: {
-        Row: {
-          id: string
-          note_id: string
-          workspace_id: string
-          text: string
-          checked: boolean
-          position: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          note_id: string
-          workspace_id: string
-          text?: string
-          checked?: boolean
-          position?: number
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['note_checklist_items']['Insert']>
-        Relationships: []
-      }
-      labels: {
-        Row: {
-          id: string
-          workspace_id: string
-          name: string
-          color: string
-          created_by: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          name: string
-          color?: string
-          created_by?: string | null
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['labels']['Insert']>
-        Relationships: []
-      }
-      note_labels: {
-        Row: {
-          note_id: string
-          label_id: string
-          workspace_id: string
-          created_at: string
-        }
-        Insert: {
-          note_id: string
-          label_id: string
-          workspace_id: string
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['note_labels']['Insert']>
-        Relationships: []
-      }
-      attachments: {
-        Row: {
-          id: string
-          workspace_id: string
-          url: string
-          target_type: string
-          target_id: string
-          mime_type: string | null
-          created_by: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          workspace_id: string
-          url: string
-          target_type: string
-          target_id: string
-          mime_type?: string | null
-          created_by?: string | null
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['attachments']['Insert']>
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "yjs_documents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
-    Views: Record<string, never>
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
-      bootstrap_workspace: {
-        Args: { p_name: string }
-        Returns: string
-      }
-      workspace_exists: {
-        Args: Record<string, never>
-        Returns: boolean
-      }
-      invite_member: {
-        Args: { p_email: string }
-        Returns: undefined
-      }
-      request_access: {
-        Args: Record<string, never>
-        Returns: undefined
-      }
-      my_membership_status: {
-        Args: Record<string, never>
-        Returns: string | null
-      }
-      is_workspace_member: {
-        Args: { p_workspace: string }
-        Returns: boolean
-      }
-      is_workspace_owner: {
-        Args: { p_workspace: string }
-        Returns: boolean
-      }
+      are_co_members: { Args: { p_user: string }; Returns: boolean }
+      bootstrap_workspace: { Args: { p_name: string }; Returns: string }
       current_user_role: {
         Args: { p_workspace: string }
-        Returns: MemberRole
+        Returns: Database["public"]["Enums"]["member_role"]
       }
-      are_co_members: {
-        Args: { p_user: string }
-        Returns: boolean
+      empty_trash: { Args: never; Returns: undefined }
+      invite_member: { Args: { p_email: string }; Returns: undefined }
+      is_workspace_member: { Args: { p_workspace: string }; Returns: boolean }
+      is_workspace_owner: { Args: { p_workspace: string }; Returns: boolean }
+      load_yjs_snapshot: {
+        Args: { p_doc_id: string; p_doc_type: string }
+        Returns: string
       }
+      my_membership_status: { Args: never; Returns: string }
+      page_subtree_ids: {
+        Args: { p_root: string }
+        Returns: {
+          id: string
+        }[]
+      }
+      request_access: { Args: never; Returns: undefined }
       save_yjs_snapshot: {
         Args: {
-          p_doc_type: string
           p_doc_id: string
-          p_workspace_id: string
+          p_doc_type: string
           p_state_b64: string
+          p_workspace_id: string
         }
         Returns: undefined
       }
-      load_yjs_snapshot: {
-        Args: { p_doc_type: string; p_doc_id: string }
-        Returns: string | null
-      }
-      empty_trash: {
-        Args: Record<string, never>
-        Returns: undefined
-      }
+      workspace_exists: { Args: never; Returns: boolean }
     }
     Enums: {
-      member_role: MemberRole
+      member_role: "owner" | "editor"
     }
-    CompositeTypes: Record<string, never>
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {
+      member_role: ["owner", "editor"],
+    },
+  },
+} as const
+
+// Convenience aliases used across the app (the codegen output above doesn't emit
+// these). `status` is a plain text column in the DB, so the generator types it as
+// `string`; the app constrains it to these three values.
+export type MemberRole = Database['public']['Enums']['member_role']
+export type MembershipStatus = 'pending' | 'requested' | 'active'

@@ -63,6 +63,31 @@ export async function uploadFile(
   return { path }
 }
 
+/**
+ * Upload a file dropped into a Docs page (BlockNote image/file blocks) to the
+ * shared private bucket under {workspaceId}/pages/{pageId}/{uuid}.{ext}
+ * (segment 1 = workspace_id is what storage.objects RLS checks). Returns the
+ * backend-neutral object PATH; BlockNote stores it and resolveFileUrl signs it
+ * on render. Accepts any type (not just images) up to MAX_IMAGE_BYTES.
+ */
+export async function uploadDocFile(
+  client: Supabase,
+  opts: { workspaceId: string; pageId: string; file: File },
+): Promise<{ path?: string; error?: string }> {
+  if (opts.file.size > MAX_IMAGE_BYTES) return { error: 'File must be 5 MB or smaller.' }
+  const dot = opts.file.name.lastIndexOf('.')
+  const ext =
+    dot >= 0 ? opts.file.name.slice(dot + 1).toLowerCase() : (EXT_BY_TYPE[opts.file.type] ?? 'bin')
+  const path = `${opts.workspaceId}/pages/${opts.pageId}/${crypto.randomUUID()}.${ext}`
+
+  const { error } = await client.storage.from(NOTE_BUCKET).upload(path, opts.file, {
+    contentType: opts.file.type || 'application/octet-stream',
+    upsert: false,
+  })
+  if (error) return { error: error.message }
+  return { path }
+}
+
 /** Mint a time-limited signed URL for a single stored path. */
 export async function getSignedUrl(
   client: Supabase,
