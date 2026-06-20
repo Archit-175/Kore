@@ -14,7 +14,13 @@ import {
   emptyProjectTrash,
   restorePage,
 } from '@/lib/actions/pages'
-import { toggleFavorite, touchRecent } from '@/lib/actions/workspace'
+import {
+  deleteProject,
+  renameProject,
+  toggleFavorite,
+  touchRecent,
+} from '@/lib/actions/workspace'
+import { EntitySettingsMenu } from '@/components/shell/entity-settings-menu'
 import { ProjectDatabasesSection } from '@/components/databases/project-databases-section'
 import { ProjectWhiteboardsSection } from '@/components/whiteboards/project-whiteboards-section'
 import { ActivitySection } from '@/components/activity/activity-section'
@@ -128,14 +134,25 @@ export function ProjectDocsHome({
             <FavoriteButton projectId={projectId} initial={isFavorite} />
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={newPage}
-          disabled={pending}
-          className="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
-        >
-          + New page
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={newPage}
+            disabled={pending}
+            className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
+          >
+            + New page
+          </button>
+          <EntitySettingsMenu
+            id={projectId}
+            name={projectName}
+            label="project"
+            renameAction={renameProject}
+            deleteAction={deleteProject}
+            canDelete={isOwner}
+            cascadeWarning="All pages, databases, and whiteboards in this project will be permanently deleted."
+          />
+        </div>
       </div>
 
       {topLevel.length === 0 ? (

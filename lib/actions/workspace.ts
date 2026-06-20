@@ -52,6 +52,28 @@ export async function createTeam(
   revalidatePath('/', 'layout')
 }
 
+/** Rename a team (owner-only, mirrors teams_update RLS). */
+export async function renameTeam(teamId: string, name: string): Promise<ActionState> {
+  await requireOwner()
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Team name is required.' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('teams').update({ name: trimmed }).eq('id', teamId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/', 'layout')
+}
+
+/** Delete a team — cascades to its projects and their content (owner-only). */
+export async function deleteTeam(teamId: string) {
+  await requireOwner()
+  const supabase = await createClient()
+  await supabase.from('teams').delete().eq('id', teamId)
+  revalidatePath('/', 'layout')
+  redirect('/')
+}
+
 // ----------------------------------------------------------------------------
 // Projects (members create/edit; owner deletes)
 // ----------------------------------------------------------------------------
@@ -80,6 +102,19 @@ export async function createProject(
 
   revalidatePath('/', 'layout')
   redirect(`/p/${data.id}`)
+}
+
+/** Rename a project (any member, mirrors projects_update RLS). */
+export async function renameProject(projectId: string, name: string): Promise<ActionState> {
+  await requireMember()
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Project name is required.' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('projects').update({ name: trimmed }).eq('id', projectId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/', 'layout')
 }
 
 export async function deleteProject(projectId: string) {
