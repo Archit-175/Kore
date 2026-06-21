@@ -5,6 +5,7 @@ import type { NoteColor } from '@/lib/notes/colors'
 import { NOTE_COLOR_CLASSES } from '@/lib/notes/colors'
 import { ColorPicker } from './color-picker'
 import { PinFilledIcon, PinIcon } from './icons'
+import { Spinner } from '@/components/spinner'
 
 export type ComposerInput = {
   title: string
@@ -20,6 +21,7 @@ export function NoteComposer({ onCreate }: { onCreate: (input: ComposerInput) =>
   const [content, setContent] = useState('')
   const [color, setColor] = useState<NoteColor>('default')
   const [pinned, setPinned] = useState(false)
+  const [saving, setSaving] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   function reset() {
@@ -31,8 +33,14 @@ export function NoteComposer({ onCreate }: { onCreate: (input: ComposerInput) =>
   }
 
   async function save() {
+    if (saving) return
     if (title.trim() || content.trim()) {
-      await onCreate({ title: title.trim(), content, color, pinned })
+      setSaving(true)
+      try {
+        await onCreate({ title: title.trim(), content, color, pinned })
+      } finally {
+        setSaving(false)
+      }
     }
     reset()
   }
@@ -96,9 +104,11 @@ export function NoteComposer({ onCreate }: { onCreate: (input: ComposerInput) =>
             <button
               type="button"
               onClick={() => void save()}
-              className="rounded-md px-3 py-1 text-sm font-medium text-neutral-700 hover:bg-black/5 dark:text-neutral-200 dark:hover:bg-white/10"
+              disabled={saving}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium text-neutral-700 hover:bg-black/5 disabled:opacity-60 dark:text-neutral-200 dark:hover:bg-white/10"
             >
-              Done
+              {saving && <Spinner className="h-3.5 w-3.5 text-indigo-500" />}
+              {saving ? 'Saving…' : 'Done'}
             </button>
           </div>
         </div>

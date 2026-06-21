@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react'
 import type { ActionState } from '@/lib/actions/workspace'
+import { Spinner } from '@/components/spinner'
 
 /** Tiny "+ add" affordance that reveals an input bound to a server action. */
 export function InlineCreate({
@@ -50,16 +51,24 @@ export function InlineCreate({
       {hidden.map((h) => (
         <input key={h.name} type="hidden" name={h.name} value={h.value} />
       ))}
-      <input
-        ref={inputRef}
-        name="name"
-        placeholder={placeholder}
-        disabled={pending}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') setOpen(false)
-        }}
-        className="w-full rounded border border-border bg-background px-2 py-1 text-sm outline-none focus:border-indigo-500"
-      />
+      <div className="relative">
+        <input
+          ref={inputRef}
+          name="name"
+          placeholder={placeholder}
+          disabled={pending}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setOpen(false)
+          }}
+          className="w-full rounded border border-border bg-background px-2 py-1 pr-7 text-sm outline-none focus:border-indigo-500 disabled:opacity-60"
+        />
+        {pending && (
+          <Spinner
+            label={`Creating ${placeholder.toLowerCase()}`}
+            className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-indigo-500"
+          />
+        )}
+      </div>
       {state?.error && <p className="px-1 pt-1 text-xs text-red-500">{state.error}</p>}
     </form>
   )

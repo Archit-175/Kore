@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { uploadChatFile } from '@/lib/storage'
 import type { ChatAttachment, ChatMessage } from '@/lib/chat/types'
 import { MentionTextarea, extractMentionIds, type MentionMember } from '@/components/mentions'
+import { Spinner } from '@/components/spinner'
 
 export function MessageComposer({
   workspaceId,
@@ -136,9 +137,10 @@ export function MessageComposer({
           type="button"
           onClick={submit}
           disabled={busy || (!body.trim() && attachments.length === 0)}
-          className="flex h-9 shrink-0 items-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
         >
-          Send
+          {busy && <Spinner className="h-3.5 w-3.5" label="Sending message" />}
+          {busy ? 'Sending…' : 'Send'}
         </button>
       </div>
     </div>

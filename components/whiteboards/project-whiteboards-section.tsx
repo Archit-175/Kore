@@ -13,6 +13,7 @@ import {
   emptyWhiteboardTrash,
   restoreWhiteboard,
 } from '@/lib/actions/whiteboards'
+import { Spinner } from '@/components/spinner'
 
 /** The "Whiteboards" section on the project Docs home — lists the project's
  *  whiteboards (icon + title) with create + a Trash drawer. Self-fetches +
@@ -90,9 +91,10 @@ export function ProjectWhiteboardsSection({
           type="button"
           onClick={() => void newWhiteboard()}
           disabled={creating}
-          className="rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-500/10 disabled:opacity-60 dark:text-indigo-300"
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-500/10 disabled:opacity-60 dark:text-indigo-300"
         >
-          + New whiteboard
+          {creating && <Spinner className="h-3 w-3" />}
+          {creating ? 'Creating…' : '+ New whiteboard'}
         </button>
       </div>
 
@@ -103,9 +105,10 @@ export function ProjectWhiteboardsSection({
             type="button"
             onClick={() => void newWhiteboard()}
             disabled={creating}
-            className="mt-1 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+            className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline disabled:opacity-60 dark:text-indigo-300"
           >
-            Create a whiteboard
+            {creating && <Spinner className="h-3.5 w-3.5" />}
+            {creating ? 'Creating…' : 'Create a whiteboard'}
           </button>
         </div>
       ) : (

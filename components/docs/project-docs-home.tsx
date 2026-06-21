@@ -24,6 +24,7 @@ import { EntitySettingsMenu } from '@/components/shell/entity-settings-menu'
 import { ProjectDatabasesSection } from '@/components/databases/project-databases-section'
 import { ProjectWhiteboardsSection } from '@/components/whiteboards/project-whiteboards-section'
 import { ActivitySection } from '@/components/activity/activity-section'
+import { Spinner } from '@/components/spinner'
 
 /** Depth-first flatten of the page tree so the home can render the whole
  *  hierarchy (parent + nested children) as one indented list. */
@@ -139,9 +140,9 @@ export function ProjectDocsHome({
             type="button"
             onClick={newPage}
             disabled={pending}
-            className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
           >
-            + New page
+            {pending ? <Spinner className="h-3.5 w-3.5" /> : '+'} {pending ? 'Creating…' : 'New page'}
           </button>
           <EntitySettingsMenu
             id={projectId}

@@ -13,6 +13,7 @@ import {
   emptyDatabaseTrash,
   restoreDatabase,
 } from '@/lib/actions/databases'
+import { Spinner } from '@/components/spinner'
 
 /** The "Databases" section on the project Docs home — lists the project's
  *  databases (icon + name + row count) with create + a Trash drawer. Self-fetches
@@ -89,9 +90,10 @@ export function ProjectDatabasesSection({
           type="button"
           onClick={() => void newDatabase()}
           disabled={creating}
-          className="rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-500/10 disabled:opacity-60 dark:text-indigo-300"
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-500/10 disabled:opacity-60 dark:text-indigo-300"
         >
-          + New database
+          {creating && <Spinner className="h-3 w-3" />}
+          {creating ? 'Creating…' : '+ New database'}
         </button>
       </div>
 
@@ -102,9 +104,10 @@ export function ProjectDatabasesSection({
             type="button"
             onClick={() => void newDatabase()}
             disabled={creating}
-            className="mt-1 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+            className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline disabled:opacity-60 dark:text-indigo-300"
           >
-            Create a database
+            {creating && <Spinner className="h-3.5 w-3.5" />}
+            {creating ? 'Creating…' : 'Create a database'}
           </button>
         </div>
       ) : (

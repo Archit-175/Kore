@@ -15,6 +15,7 @@ import {
   renderMessageBody,
   type MentionMember,
 } from '@/components/mentions'
+import { Spinner } from '@/components/spinner'
 
 /**
  * Reusable comments thread for a Docs page (right-side panel / mobile drawer) or
@@ -229,9 +230,10 @@ export function CommentsPanel({
           <button
             onClick={add}
             disabled={busy || !draft.trim()}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
           >
-            Comment
+            {busy && <Spinner className="h-3 w-3" label="Posting comment" />}
+            {busy ? 'Posting…' : 'Comment'}
           </button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { requireOwner, verifySession } from '@/lib/dal'
 import { createClient } from '@/lib/supabase/server'
-import { approveMember, removeMember } from '@/lib/actions/workspace'
 import { InviteForm } from '@/components/members/invite-form'
+import { RequestActions, RemoveMemberButton } from '@/components/members/member-actions'
 import { initials } from '@/lib/presence'
 import { userColor } from '@/lib/yjs/awareness'
 
@@ -86,22 +86,7 @@ export default async function MembersPage() {
                   <p className="truncate text-sm font-medium">{nameOf(r)}</p>
                   <p className="truncate text-xs text-neutral-400">{r.invited_email}</p>
                 </div>
-                <form action={approveMember.bind(null, r.id)}>
-                  <button
-                    type="submit"
-                    className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500"
-                  >
-                    Approve
-                  </button>
-                </form>
-                <form action={removeMember.bind(null, r.id)}>
-                  <button
-                    type="submit"
-                    className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-500/10"
-                  >
-                    Deny
-                  </button>
-                </form>
+                <RequestActions membershipId={r.id} />
               </li>
             ))}
           </ul>
@@ -139,16 +124,7 @@ export default async function MembersPage() {
               >
                 {r.status === 'active' ? 'Active' : 'Invited'}
               </span>
-              {canRemove && (
-                <form action={removeMember.bind(null, r.id)}>
-                  <button
-                    type="submit"
-                    className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-500/10"
-                  >
-                    Remove
-                  </button>
-                </form>
-              )}
+              {canRemove && <RemoveMemberButton membershipId={r.id} />}
             </li>
           )
         })}
