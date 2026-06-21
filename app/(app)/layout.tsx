@@ -1,4 +1,4 @@
-import { getPresenceUser, requireMember, verifySession } from '@/lib/dal'
+import { getPresenceUser, getTeamMemberships, requireMember, verifySession } from '@/lib/dal'
 import { createClient } from '@/lib/supabase/server'
 import { loadUnreadCount } from '@/lib/chat/load-chat'
 import { AppShell } from '@/components/shell/app-shell'
@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const presenceUser = await getPresenceUser()
   const supabase = await createClient()
 
-  const [teamsRes, projectsRes, favRes, recentRes, chatUnread] = await Promise.all([
+  const [teamsRes, projectsRes, favRes, recentRes, chatUnread, myTeamIds] = await Promise.all([
     supabase.from('teams').select('id, name, icon, position').order('position'),
     supabase.from('projects').select('id, name, icon, team_id, position').order('position'),
     supabase.from('favorites').select('target_type, target_id').eq('user_id', user.id),
@@ -21,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .order('visited_at', { ascending: false })
       .limit(8),
     loadUnreadCount(supabase, membership.workspaceId, user.id),
+    getTeamMemberships(),
   ])
 
   const teams = teamsRes.data ?? []
@@ -48,6 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     currentUserId: user.id,
     chatUnread,
     isOwner: membership.role === 'owner',
+    myTeamIds,
     teams: teams.map((t) => ({ id: t.id, name: t.name, icon: t.icon })),
     projects: projects.map((p) => ({
       id: p.id,

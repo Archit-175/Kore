@@ -17,10 +17,12 @@ import {
 import {
   deleteProject,
   renameProject,
+  setProjectIcon,
   toggleFavorite,
   touchRecent,
 } from '@/lib/actions/workspace'
 import { EntitySettingsMenu } from '@/components/shell/entity-settings-menu'
+import { EntityIcon } from '@/components/shell/entity-icon'
 import { ProjectDatabasesSection } from '@/components/databases/project-databases-section'
 import { ProjectWhiteboardsSection } from '@/components/whiteboards/project-whiteboards-section'
 import { ActivitySection } from '@/components/activity/activity-section'
@@ -45,18 +47,20 @@ function flattenTree(nodes: PageTreeNode[], depth = 0): { node: PageTreeNode; de
 export function ProjectDocsHome({
   projectId,
   projectName,
+  projectIcon,
   teamName,
   workspaceId,
-  isOwner,
+  canAdmin,
   isFavorite,
   initialPages,
   initialTrashed,
 }: {
   projectId: string
   projectName: string
+  projectIcon: string | null
   teamName: string
   workspaceId: string
-  isOwner: boolean
+  canAdmin: boolean
   isFavorite: boolean
   initialPages: PageNode[]
   initialTrashed: PageNode[]
@@ -128,12 +132,21 @@ export function ProjectDocsHome({
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8">
       <div className="mb-6 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-xs text-neutral-400">{teamName}</p>
-          <h1 className="flex items-center gap-2 truncate text-2xl font-bold">
-            {projectName}
-            <FavoriteButton projectId={projectId} initial={isFavorite} />
-          </h1>
+        <div className="flex min-w-0 items-start gap-2.5">
+          <EntityIcon
+            id={projectId}
+            icon={projectIcon}
+            editable
+            action={setProjectIcon}
+            fallback="📁"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-xs text-neutral-400">{teamName}</p>
+            <h1 className="flex items-center gap-2 truncate text-2xl font-bold">
+              {projectName}
+              <FavoriteButton projectId={projectId} initial={isFavorite} />
+            </h1>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
@@ -150,7 +163,7 @@ export function ProjectDocsHome({
             label="project"
             renameAction={renameProject}
             deleteAction={deleteProject}
-            canDelete={isOwner}
+            canDelete={canAdmin}
             cascadeWarning="All pages, databases, and whiteboards in this project will be permanently deleted."
           />
         </div>
@@ -204,7 +217,7 @@ export function ProjectDocsHome({
               <span className="text-[10px]">{showTrash ? '▾' : '▸'}</span>
               Trash ({trashedRoots.length})
             </button>
-            {isOwner && showTrash && (
+            {canAdmin && showTrash && (
               <button
                 type="button"
                 onClick={onEmptyTrash}
@@ -232,7 +245,7 @@ export function ProjectDocsHome({
                   >
                     Restore
                   </button>
-                  {isOwner && (
+                  {canAdmin && (
                     <button
                       type="button"
                       onClick={() => onDeleteForever(p.id)}
@@ -251,13 +264,13 @@ export function ProjectDocsHome({
       <ProjectDatabasesSection
         projectId={projectId}
         workspaceId={workspaceId}
-        isOwner={isOwner}
+        isOwner={canAdmin}
       />
 
       <ProjectWhiteboardsSection
         projectId={projectId}
         workspaceId={workspaceId}
-        isOwner={isOwner}
+        isOwner={canAdmin}
       />
 
       <ActivitySection projectId={projectId} workspaceId={workspaceId} />

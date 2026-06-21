@@ -2,8 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { createInvite, createProject, createTeam } from '@/lib/actions/workspace'
+import {
+  createInvite,
+  createProject,
+  createTeam,
+  deleteProject,
+  deleteTeam,
+  renameProject,
+  renameTeam,
+} from '@/lib/actions/workspace'
 import { InlineCreate } from './inline-create'
+import { EntitySettingsMenu } from './entity-settings-menu'
 import { ProjectPagesTree } from './project-pages-tree'
 import { ProjectDatabasesTree } from './project-databases-tree'
 import { ProjectWhiteboardsTree } from './project-whiteboards-tree'
@@ -19,6 +28,7 @@ export type SidebarData = {
   currentUserId: string
   chatUnread: number
   isOwner: boolean
+  myTeamIds: string[]
   teams: SidebarTeam[]
   projects: SidebarProject[]
   favorites: SidebarLink[]
@@ -201,23 +211,55 @@ export function Sidebar({
         const projects = data.projects.filter((p) => p.teamId === team.id)
         return (
           <div key={team.id} className="mb-1">
-            <NavLink
-              href={teamHref}
-              label={team.name}
-              icon={team.icon ?? '▸'}
-              active={pathname === teamHref}
-              onNavigate={onNavigate}
-            />
+            <div className="group/row relative flex items-center">
+              <div className="min-w-0 flex-1">
+                <NavLink
+                  href={teamHref}
+                  label={team.name}
+                  icon={team.icon ?? '▸'}
+                  active={pathname === teamHref}
+                  onNavigate={onNavigate}
+                />
+              </div>
+              {data.isOwner && (
+                <div className="absolute right-0.5 opacity-0 transition focus-within:opacity-100 group-hover/row:opacity-100">
+                  <EntitySettingsMenu
+                    id={team.id}
+                    name={team.name}
+                    label="team"
+                    renameAction={renameTeam}
+                    deleteAction={deleteTeam}
+                    canDelete
+                    cascadeWarning="Every project in this team — and all of its pages, databases, and whiteboards — will be permanently deleted."
+                  />
+                </div>
+              )}
+            </div>
             <div className="ml-3 border-l border-border pl-1">
               {projects.map((p) => (
                 <div key={p.id}>
-                  <NavLink
-                    href={`/p/${p.id}`}
-                    label={p.name}
-                    icon={p.icon ?? '·'}
-                    active={pathname === `/p/${p.id}`}
-                    onNavigate={onNavigate}
-                  />
+                  <div className="group/row relative flex items-center">
+                    <div className="min-w-0 flex-1">
+                      <NavLink
+                        href={`/p/${p.id}`}
+                        label={p.name}
+                        icon={p.icon ?? '·'}
+                        active={pathname === `/p/${p.id}`}
+                        onNavigate={onNavigate}
+                      />
+                    </div>
+                    <div className="absolute right-0.5 opacity-0 transition focus-within:opacity-100 group-hover/row:opacity-100">
+                      <EntitySettingsMenu
+                        id={p.id}
+                        name={p.name}
+                        label="project"
+                        renameAction={renameProject}
+                        deleteAction={deleteProject}
+                        canDelete={data.isOwner || data.myTeamIds.includes(p.teamId)}
+                        cascadeWarning="All of this project's pages, databases, and whiteboards will be permanently deleted."
+                      />
+                    </div>
+                  </div>
                   <div className="ml-3 border-l border-border pl-1">
                     <ProjectPagesTree
                       projectId={p.id}

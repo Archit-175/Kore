@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { requireMember, requireOwner, verifySession } from '@/lib/dal'
+import { canAdminProject, requireMember, verifySession } from '@/lib/dal'
 import { logActivity, type ActivityAction } from '@/lib/actions/activity'
 
 type Supabase = Awaited<ReturnType<typeof createClient>>
@@ -213,19 +213,25 @@ export async function restorePage(id: string): Promise<Result> {
  *  FK cascade removes the subtree + page_links; the pages_purge_yjs trigger
  *  removes each page's Yjs snapshot. */
 export async function deletePagePermanent(id: string): Promise<Result> {
-  const membership = await requireOwner()
+  const membership = await requireMember()
   const user = await verifySession()
   const supabase = await createClient()
+  const { data: page } = await supabase.from('pages').select('project_id').eq('id', id).maybeSingle()
+  if (!page) return { error: 'Page not found.' }
+  if (!(await canAdminProject(page.project_id)))
+    return { error: 'Only team members can permanently delete this.' }
   // Snapshot the title BEFORE the row is gone.
   await logPageEvent(supabase, membership.workspaceId, user.id, id, 'deleted')
   const { error } = await supabase.from('pages').delete().eq('id', id)
   return error ? { error: error.message } : {}
 }
 
-/** Empty a project's trash — owner-only. Hard-deletes every trashed page in the
- *  project (cascade + snapshot purge follow). */
+/** Empty a project's trash — team admins (owner or team member). Hard-deletes
+ *  every trashed page in the project (cascade + snapshot purge follow). */
 export async function emptyProjectTrash(projectId: string): Promise<Result> {
-  const membership = await requireOwner()
+  const membership = await requireMember()
+  if (!(await canAdminProject(projectId)))
+    return { error: 'Only team members can empty the trash.' }
   const supabase = await createClient()
   const { error } = await supabase
     .from('pages')

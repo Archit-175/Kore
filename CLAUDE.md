@@ -46,9 +46,14 @@ shipped; remaining work is UI/UX polish, not new features.**
 ## Resolved product decisions (Phase 1)
 
 - **One workspace** (schema is `workspace_id`-scoped for future-proofing; no switcher).
-- **Teams** = organizational grouping only — **no visibility walls**; every member can
-  read AND edit every team's content.
-- **Roles:** `owner` (sole admin) + `editor`. **No viewer.**
+- **Teams** = organizational grouping with **no visibility walls** — every active member
+  still reads AND edits every team's content. **Phase 8 added per-team rosters**
+  (`team_members`): being on a team grants **owner-like control over that team's PROJECTS**
+  (permanent delete / empty-trash / delete-project) via the `can_admin_project` RLS helper —
+  still NO read/write walls. The workspace owner manages each roster + the team icon. See the
+  Phase 8 section.
+- **Roles:** `owner` (sole workspace admin) + `editor`, **plus** per-team membership that
+  confers project-admin powers. **No viewer.**
 - **Access = invite-gated + request-to-join:** the owner pre-authorizes emails (pending
   membership) → auto-join as active Editor on matching signup. Uninvited signups become a
   **join request** (status `requested`) the owner approves/denies on `/members`; an
@@ -296,6 +301,40 @@ shipped; remaining work is UI/UX polish, not new features.**
 - **Migration `…170000_profiles_handles.sql`** (handle column + index + CHECK, `generate_handle()`,
   backfill, updated `handle_new_user`, `avatars` bucket object policies). `types/database.ts` gained
   `handle` on profiles Row/Insert/Update.
+
+## Resolved product decisions (Phase 8 — Team membership & home redesign)
+
+- **Per-team rosters, no walls.** New `team_members` table (`(team_id,user_id)` PK +
+  denormalized `workspace_id`) in `…180000_team_members.sql`. Being on a team's roster grants
+  **owner-like powers over that team's PROJECTS** — permanent delete, empty-trash,
+  delete-project — but **NOT** read/write walls (every active member still sees + edits all
+  content) and **NOT** team-entity control (rename/delete-team stay workspace-owner). All team
+  members are equal admins (no per-team "lead" role); the **workspace owner** manages each
+  roster (insert/delete RLS) + the team icon.
+- **Authz mechanism.** Two new SECURITY DEFINER helpers: `is_team_member(team)` and
+  `can_admin_project(project)` (= workspace owner OR member of the project's team). The four
+  permanent-delete policies (`pages_delete`/`databases_delete`/`whiteboards_delete` →
+  `can_admin_project`, `projects_delete` → owner OR `is_team_member`) were relaxed from
+  owner-only; the `empty_*_trash` RPCs are **`security invoker`** so they ride the policies
+  automatically (no RPC changes). `notes_delete` stays **workspace-owner-only** (the `/notes`
+  board is workspace-wide, not team-scoped). DAL adds `getTeamMemberships()` + `canAdminProject()`;
+  the trash/delete actions in `pages.ts`/`databases.ts`/`whiteboards.ts` + `deleteProject`
+  switched `requireOwner` → `requireMember` + `canAdminProject` guard.
+- **Team profile** (`/t/[teamId]`): editable **team icon** (`setTeamIcon`, owner) + a roster
+  manager (`components/teams/team-members.tsx`, `addTeamMember`/`removeTeamMember`,
+  `useTransition`+`router.refresh()`). **Project icon** (`setProjectIcon`, any member) on the
+  Docs-home header — both reuse `IconPicker` via a new `components/shell/entity-icon.tsx` wrapper.
+- **Sidebar 3-dot menus.** `EntitySettingsMenu` now renders on hover beside each team + project
+  in `components/shell/sidebar.tsx` (project `canDelete = isOwner || myTeamIds.includes(teamId)`);
+  `SidebarData` gained `myTeamIds` (from `getTeamMemberships()` in the app layout).
+- **Home page** (`app/(app)/page.tsx`): outline-only **"KORE"** wordmark watermark
+  (`.kore-watermark` + `--kore-stroke` token in `globals.css`, `-webkit-text-stroke`, fixed
+  `-z-10` behind transparent `<main>`) + teams→projects grid + pinned-notes strip (reuses the
+  notes `pinned`/`trashed_at`/`archived_at` query shape + `NOTE_COLOR_CLASSES`).
+- **Migration `…180000_team_members.sql`**: `team_members` (RLS: select=member, insert/delete=owner,
+  explicit grant, realtime publication + replica identity full), `is_team_member` +
+  `can_admin_project` helpers, the four relaxed delete policies. `types/database.ts` gained the
+  `team_members` table (hand-added; re-add `MemberRole`/`MembershipStatus` aliases on any regen).
 
 ## Next.js 16 gotchas (this is NOT the Next.js in your training data)
 

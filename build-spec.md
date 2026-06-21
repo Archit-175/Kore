@@ -163,6 +163,25 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 > `20260620170000_profiles_handles.sql` (handle column + `generate_handle()` + backfill + signup-
 > trigger update + `avatars` bucket policies); the bucket itself is created manually (public, 5 MB).
 
+### 4.8 Team membership & home redesign — ✅ COMPLETE (Phase 8)
+- **Per-team rosters** (`team_members`): the **workspace owner** adds/removes members on the team
+  profile page and sets the **team icon** ✅
+- **Team-scoped powers, no walls**: being on a team grants **owner-like control over that team's
+  PROJECTS** — permanent delete, empty-trash, delete-project — while every active member still
+  reads + edits all content (no visibility walls); all team members are equal (no per-team lead) ✅
+- **Editable project icon** (any member) ✅
+- **Sidebar 3-dot (⋯) menus** for each team + project (rename / delete) on hover ✅
+- **Home page** — outline-only **"KORE"** watermark behind teams→projects + a pinned-notes strip ✅
+
+> Teams stopped being grouping-only. New migration `20260620180000_team_members.sql`: a
+> `team_members` roster (owner-managed RLS), `is_team_member`/`can_admin_project` SECURITY-DEFINER
+> helpers, and the four permanent-delete policies relaxed from owner-only to `can_admin_project`
+> (the `empty_*_trash` RPCs ride them automatically — all SECURITY INVOKER). `notes_delete` stays
+> workspace-owner-only (the board is workspace-wide). DAL gained `getTeamMemberships`/
+> `canAdminProject`; the trash/delete actions switched `requireOwner` → `requireMember` +
+> `canAdminProject`. UI verified single-window; pending the owner-session pass (icon edit, roster
+> add/remove, team-member project delete) + applying the migration with `supabase db push`.
+
 ---
 
 ## 5. Suggested Data Model (Postgres / Supabase)
@@ -175,6 +194,7 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
 - **profiles** ✅ — `id`→auth.users, `email`, `full_name`, `avatar_url`, `handle` (unique lowercase mention nickname — *Phase 7*) (mirror, via auth trigger)
 - **workspaces** ✅ — `id`, `name`, `owner_id`
 - **teams** ✅ — `id`, `workspace_id`, `name`, `icon`, `position` *(org grouping inside workspace)*
+- **team_members** ✅ — `(team_id, user_id)` PK, `workspace_id`, `added_by` *(Phase 8 — per-team roster; owner-managed; grants project-admin powers over the team's projects, no read/write walls)*
 - **memberships** ✅ — `id`, `workspace_id`, `user_id` (null while an invite is unclaimed), `invited_email`, `role` (**owner/editor**), `status` (**pending** = invited, not signed up · **requested** = self-requested, awaiting approval · **active**). Invite → auto-join on signup (or instant link if the account already exists); uninvited signup → join request the owner approves.
 - **projects** ✅ — `id`, `workspace_id`, `team_id`, `name`, `icon` *(belongs to a team)*
 - **favorites / recents** ✅ — per-user `(user_id, target_type, target_id)` lists
@@ -220,6 +240,11 @@ A small team (under 10 people) signs in, joins shared projects, and works togeth
    avatar, unique `@handle`); handle-based @-mentions (stable across name changes); inline topbar
    search dropdown (replacing the centered command-palette modal); team/project rename + delete.
    New migration `20260620170000_profiles_handles.sql` + a manual public `avatars` bucket.
+8. **Team membership & home redesign** — ✅ **COMPLETE (code; pending migration apply + owner-session
+   verify).** Per-team rosters (`team_members`, owner-managed) granting team-scoped project-admin
+   powers (no visibility walls); team icon + project icon; sidebar 3-dot menus; home page with the
+   outline **"KORE"** watermark + teams/projects + pinned notes. New migration
+   `20260620180000_team_members.sql` (no manual Supabase setup — no new bucket).
 
 ---
 

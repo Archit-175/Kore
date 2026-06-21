@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import {
+  canAdminProject,
   getActiveMembership,
   requireMember,
   requireOwner,
@@ -118,11 +119,24 @@ export async function renameProject(projectId: string, name: string): Promise<Ac
 }
 
 export async function deleteProject(projectId: string) {
-  await requireOwner()
+  await requireMember()
+  if (!(await canAdminProject(projectId))) redirect('/')
   const supabase = await createClient()
   await supabase.from('projects').delete().eq('id', projectId)
   revalidatePath('/', 'layout')
   redirect('/')
+}
+
+/** Cosmetic project icon — any member (mirrors renameProject). */
+export async function setProjectIcon(
+  projectId: string,
+  icon: string | null,
+): Promise<ActionState> {
+  await requireMember()
+  const supabase = await createClient()
+  const { error } = await supabase.from('projects').update({ icon }).eq('id', projectId)
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
 }
 
 // ----------------------------------------------------------------------------
@@ -171,6 +185,48 @@ export async function requestAccess() {
   await verifySession()
   const supabase = await createClient()
   await supabase.rpc('request_access')
+  revalidatePath('/', 'layout')
+}
+
+// ----------------------------------------------------------------------------
+// Team roster + team icon (workspace owner manages; RLS enforces it too).
+// Team members gain owner-like powers over the team's PROJECTS (see can_admin_project).
+// ----------------------------------------------------------------------------
+export async function addTeamMember(teamId: string, userId: string): Promise<ActionState> {
+  const membership = await requireOwner()
+  const me = await verifySession()
+  const supabase = await createClient()
+  const { error } = await supabase.from('team_members').insert({
+    team_id: teamId,
+    user_id: userId,
+    workspace_id: membership.workspaceId,
+    added_by: me.id,
+  })
+  if (error) {
+    if (error.code === '23505') return { error: 'Already on this team.' }
+    return { error: error.message }
+  }
+  revalidatePath('/', 'layout')
+}
+
+export async function removeTeamMember(teamId: string, userId: string): Promise<ActionState> {
+  await requireOwner()
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('team_members')
+    .delete()
+    .eq('team_id', teamId)
+    .eq('user_id', userId)
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+}
+
+/** Team icon — workspace owner only (managing the team entity). */
+export async function setTeamIcon(teamId: string, icon: string | null): Promise<ActionState> {
+  await requireOwner()
+  const supabase = await createClient()
+  const { error } = await supabase.from('teams').update({ icon }).eq('id', teamId)
+  if (error) return { error: error.message }
   revalidatePath('/', 'layout')
 }
 

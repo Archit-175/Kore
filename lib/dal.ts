@@ -73,6 +73,41 @@ export async function requireOwner(): Promise<ActiveMembership> {
   return membership
 }
 
+/** Team ids the current user is a member of (per-team rosters). Used to compute
+ *  team-scoped admin powers in the UI (sidebar / cards). */
+export const getTeamMemberships = cache(async (): Promise<string[]> => {
+  const user = await getCurrentUser()
+  if (!user) return []
+  const supabase = await createClient()
+  const { data } = await supabase.from('team_members').select('team_id').eq('user_id', user.id)
+  return (data ?? []).map((r) => r.team_id)
+})
+
+/** True if the caller may perform owner-like admin on a project (permanent
+ *  delete, empty-trash, delete-project): workspace owner OR a member of the
+ *  project's team. Mirrors the `can_admin_project` RLS helper; the project's
+ *  team is re-resolved server-side (IDOR-safe). */
+export const canAdminProject = cache(async (projectId: string): Promise<boolean> => {
+  const user = await getCurrentUser()
+  if (!user) return false
+  const supabase = await createClient()
+  const { data: project } = await supabase
+    .from('projects')
+    .select('team_id, workspaces!inner ( owner_id )')
+    .eq('id', projectId)
+    .maybeSingle()
+  if (!project) return false
+  const ws = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces
+  if (ws?.owner_id === user.id) return true
+  const { data: membership } = await supabase
+    .from('team_members')
+    .select('team_id')
+    .eq('team_id', project.team_id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  return Boolean(membership)
+})
+
 /** True if the single workspace has been bootstrapped (RLS-bypassing RPC). */
 export const workspaceExists = cache(async (): Promise<boolean> => {
   const supabase = await createClient()

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { requireMember, requireOwner, verifySession } from '@/lib/dal'
+import { canAdminProject, requireMember, verifySession } from '@/lib/dal'
 import { logActivity, type ActivityAction } from '@/lib/actions/activity'
 
 /**
@@ -173,9 +173,17 @@ export async function restoreWhiteboard(id: string): Promise<Result> {
 /** Permanent delete — owner-only. The DB AFTER DELETE trigger purges the
  *  matching yjs_documents snapshot. */
 export async function deleteWhiteboardPermanent(id: string): Promise<Result> {
-  const membership = await requireOwner()
+  const membership = await requireMember()
   const user = await verifySession()
   const supabase = await createClient()
+  const { data: wb } = await supabase
+    .from('whiteboards')
+    .select('project_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!wb) return { error: 'Whiteboard not found.' }
+  if (!(await canAdminProject(wb.project_id)))
+    return { error: 'Only team members can permanently delete this.' }
   // Snapshot the title BEFORE the row is gone.
   await logWhiteboardEvent(supabase, membership.workspaceId, user.id, id, 'deleted')
   const { error } = await supabase
@@ -186,9 +194,11 @@ export async function deleteWhiteboardPermanent(id: string): Promise<Result> {
   return error ? { error: error.message } : {}
 }
 
-/** Empty a project's whiteboard trash — owner-only. */
+/** Empty a project's whiteboard trash — team admins (owner or team member). */
 export async function emptyWhiteboardTrash(projectId: string): Promise<Result> {
-  await requireOwner()
+  await requireMember()
+  if (!(await canAdminProject(projectId)))
+    return { error: 'Only team members can empty the trash.' }
   const supabase = await createClient()
   const { error } = await supabase.rpc('empty_whiteboard_trash', { p_project_id: projectId })
   return error ? { error: error.message } : {}

@@ -8,6 +8,7 @@
   --foreground: #171717;
   --surface: #f7f7f8;
   --border: rgba(0, 0, 0, 0.08);
+  --kore-stroke: rgba(0, 0, 0, 0.08);
 }
 
 .dark {
@@ -15,6 +16,7 @@
   --foreground: #ededed;
   --surface: #141416;
   --border: rgba(255, 255, 255, 0.1);
+  --kore-stroke: rgba(255, 255, 255, 0.13);
 }
 
 @theme inline {
@@ -68,6 +70,19 @@ body {
 }
 .kore-wb-embed .excalidraw {
   --ui-font: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Home-page "KORE" watermark: an outline-only (no fill) wordmark behind content.
+   `-webkit-text-stroke` gives the hollow letters; --kore-stroke keeps it faint in
+   both themes so content stays legible. Sits in a fixed, non-interactive layer. */
+.kore-watermark {
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 2px var(--kore-stroke);
+  font-size: clamp(8rem, 28vw, 22rem);
+  user-select: none;
 }
 
 /* Brief highlight when you jump to a quoted chat message (WhatsApp-style reply). */

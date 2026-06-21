@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { requireMember, requireOwner, verifySession } from '@/lib/dal'
+import { canAdminProject, requireMember, verifySession } from '@/lib/dal'
 import { logActivity, type ActivityAction } from '@/lib/actions/activity'
 import type { CellValue, PropertyType, SelectOption } from '@/lib/databases/types'
 import { PROPERTY_TYPES } from '@/lib/databases/types'
@@ -264,9 +264,17 @@ export async function restoreDatabase(id: string): Promise<Result> {
 
 /** Permanent delete — owner-only. FK cascade removes properties/views/rows. */
 export async function deleteDatabasePermanent(id: string): Promise<Result> {
-  const membership = await requireOwner()
+  const membership = await requireMember()
   const user = await verifySession()
   const supabase = await createClient()
+  const { data: db } = await supabase
+    .from('databases')
+    .select('project_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!db) return { error: 'Database not found.' }
+  if (!(await canAdminProject(db.project_id)))
+    return { error: 'Only team members can permanently delete this.' }
   // Snapshot the title BEFORE the row is gone.
   await logDatabaseEvent(supabase, membership.workspaceId, user.id, id, 'deleted')
   const { error } = await supabase
@@ -277,9 +285,11 @@ export async function deleteDatabasePermanent(id: string): Promise<Result> {
   return error ? { error: error.message } : {}
 }
 
-/** Empty a project's database trash — owner-only. */
+/** Empty a project's database trash — team admins (owner or team member). */
 export async function emptyDatabaseTrash(projectId: string): Promise<Result> {
-  await requireOwner()
+  await requireMember()
+  if (!(await canAdminProject(projectId)))
+    return { error: 'Only team members can empty the trash.' }
   const supabase = await createClient()
   const { error } = await supabase.rpc('empty_database_trash', { p_project_id: projectId })
   return error ? { error: error.message } : {}

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireMember, verifySession } from '@/lib/dal'
+import { canAdminProject, requireMember, verifySession } from '@/lib/dal'
 import { createClient } from '@/lib/supabase/server'
 import { loadProjectPages, loadTrashedPages } from '@/lib/docs/load-pages'
 import { ProjectDocsHome } from '@/components/docs/project-docs-home'
@@ -16,10 +16,12 @@ export default async function ProjectPage({
 
   const { data: project } = await supabase
     .from('projects')
-    .select('id, name, team_id, teams ( name )')
+    .select('id, name, icon, team_id, teams ( name )')
     .eq('id', projectId)
     .maybeSingle()
   if (!project) notFound()
+
+  const canAdmin = await canAdminProject(projectId)
 
   const { data: fav } = await supabase
     .from('favorites')
@@ -39,9 +41,10 @@ export default async function ProjectPage({
     <ProjectDocsHome
       projectId={project.id}
       projectName={project.name}
+      projectIcon={project.icon}
       teamName={team?.name ?? 'Team'}
       workspaceId={membership.workspaceId}
-      isOwner={membership.role === 'owner'}
+      canAdmin={canAdmin}
       isFavorite={Boolean(fav)}
       initialPages={initialPages}
       initialTrashed={initialTrashed}
