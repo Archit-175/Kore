@@ -137,13 +137,25 @@ export function BoardView({
     [properties, view.groupPropertyId],
   )
 
+  // Rows whose group cell is blank (or points at a deleted option) live in the
+  // catch-all "No <prop>" column.
+  const hasNoStatusRows = useMemo(
+    () => (groupProp ? columnRows(rows, view.id, groupProp.id, null).length > 0 : false),
+    [groupProp, rows, view.id],
+  )
+
   const columns: Column[] = useMemo(() => {
     if (!groupProp) return [{ key: null, name: 'All', option: null }]
-    return [
-      { key: null, name: `No ${groupProp.name || 'value'}`, option: null },
-      ...groupProp.options.map((o) => ({ key: o.id, name: o.name, option: o })),
-    ]
-  }, [groupProp])
+    const optionCols = groupProp.options.map((o) => ({ key: o.id, name: o.name, option: o }))
+    // Only surface the "No <prop>" column when it actually holds rows — or while a
+    // drag is in flight, so a card can still be dropped there to clear its value.
+    // (Hiding it never drops data: a row with no status simply has no column to show
+    // until one exists.)
+    const showNone = hasNoStatusRows || drag !== null
+    return showNone
+      ? [{ key: null, name: `No ${groupProp.name || 'value'}`, option: null }, ...optionCols]
+      : optionCols
+  }, [groupProp, hasNoStatusRows, drag])
 
   const skipIds = useMemo(
     () => new Set([tProp?.id, groupProp?.id].filter((x): x is string => Boolean(x))),
