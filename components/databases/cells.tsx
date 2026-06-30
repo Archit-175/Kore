@@ -73,7 +73,8 @@ function formatDate(value: string): string {
 // active typing when a remote refetch lands).
 // ----------------------------------------------------------------------------
 function TextCell({ property, value, onCommit, fill, autoFocus }: CellProps) {
-  const ref = useRef<HTMLInputElement>(null)
+  const isTitle = property.type === 'title'
+  const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
   const [draft, setDraft] = useState(asString(value))
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Refs so the unmount cleanup (empty deps) sees the latest draft + callback.
@@ -86,9 +87,31 @@ function TextCell({ property, value, onCommit, fill, autoFocus }: CellProps) {
     commitRef.current = onCommit
   }, [onCommit])
 
+  // Collapse long free-text to a few lines with a More/Less toggle. While editing
+  // (focused) we always show the full content so typing is never clipped.
+  const [expanded, setExpanded] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+  const COLLAPSED_MAX = 76 // ~3 lines
+  const EXPANDED_MAX = 360
+
   useEffect(() => {
     if (ref.current !== document.activeElement) setDraft(asString(value))
   }, [value])
+  // Keep the textarea sized to its content on every render (mount + remote edits),
+  // not only on user keystroke — onInput alone leaves the initial value clipped.
+  // Cap to the collapsed height unless focused/expanded, and flag overflow so the
+  // More/Less control only appears when there's hidden content.
+  useEffect(() => {
+    if (isTitle) return
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    const full = el.scrollHeight
+    const showFull = focused || expanded
+    el.style.height = `${Math.min(full, showFull ? EXPANDED_MAX : COLLAPSED_MAX)}px`
+    setOverflowing(full > COLLAPSED_MAX + 2)
+  }, [draft, isTitle, focused, expanded])
   // Flush a pending debounced edit on unmount. React's onBlur does NOT fire when a
   // focused input is removed by reconciliation (e.g. a remote refetch swaps the
   // table↔board subtree mid-edit), so without this the last typed text is lost.
@@ -106,25 +129,63 @@ function TextCell({ property, value, onCommit, fill, autoFocus }: CellProps) {
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => onCommit(v), 400)
   }
-  const isTitle = property.type === 'title'
+  const onChange = (v: string) => {
+    setDraft(v)
+    save(v)
+  }
+  const onBlur = () => {
+    setFocused(false)
+    if (timer.current) clearTimeout(timer.current)
+    if (asString(value) !== draft) onCommit(draft)
+  }
+  const baseClass = `min-w-0 bg-transparent text-sm outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600 ${
+    fill ? 'w-full px-2 py-1.5' : 'w-full rounded border border-border px-2 py-1.5 focus:border-indigo-500'
+  }`
+
+  // Title = single-line input (it's a row's name). Free text = an auto-growing
+  // textarea so long content WRAPS and stays fully visible instead of being clipped
+  // to one line by the column / modal-field width.
+  if (isTitle) {
+    return (
+      <input
+        ref={ref}
+        value={draft}
+        autoFocus={autoFocus}
+        placeholder="Untitled"
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        className={`${baseClass} font-medium`}
+      />
+    )
+  }
   return (
-    <input
-      ref={ref}
-      value={draft}
-      autoFocus={autoFocus}
-      placeholder={isTitle ? 'Untitled' : 'Empty'}
-      onChange={(e) => {
-        setDraft(e.target.value)
-        save(e.target.value)
-      }}
-      onBlur={() => {
-        if (timer.current) clearTimeout(timer.current)
-        if (asString(value) !== draft) onCommit(draft)
-      }}
-      className={`min-w-0 bg-transparent text-sm outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600 ${
-        isTitle ? 'font-medium' : ''
-      } ${fill ? 'w-full px-2 py-1.5' : 'w-full rounded border border-border px-2 py-1.5 focus:border-indigo-500'}`}
-    />
+    <div className="w-full">
+      <textarea
+        ref={ref}
+        value={draft}
+        rows={1}
+        autoFocus={autoFocus}
+        placeholder="Empty"
+        onFocus={() => setFocused(true)}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        className={`${baseClass} resize-none overflow-hidden break-words`}
+      />
+      {!focused && overflowing && (
+        <button
+          type="button"
+          // The cell surface is a click target (opens the row / focuses) — don't let
+          // the toggle bubble up to it.
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded((v) => !v)
+          }}
+          className="px-2 pb-1 text-xs font-medium text-indigo-500 hover:underline"
+        >
+          {expanded ? 'Less' : 'More'}
+        </button>
+      )}
+    </div>
   )
 }
 
