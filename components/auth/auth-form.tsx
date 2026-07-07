@@ -98,6 +98,19 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           {isLogin ? 'Sign up' : 'Sign in'}
         </Link>
       </p>
+
+      {/* No account / not approved yet? Explore the full product with no login. */}
+      <div className="rounded-lg border border-dashed border-black/10 p-3 text-center dark:border-white/15">
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          Just looking around?
+        </p>
+        <Link
+          href="/demo"
+          className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+        >
+          Try the live demo — no sign-in needed →
+        </Link>
+      </div>
     </div>
   )
 }

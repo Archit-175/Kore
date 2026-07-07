@@ -25,6 +25,9 @@ export function NoteEditorModal({
   workspaceId,
   currentUserId,
   onClose,
+  // The comments component is injectable so the /demo fork can pass an in-memory
+  // variant; the authenticated app uses the real CommentsPanel (default) unchanged.
+  CommentsComponent = CommentsPanel,
 }: {
   note: BoardNote
   tab: NotesTab
@@ -32,6 +35,7 @@ export function NoteEditorModal({
   workspaceId: string
   currentUserId: string
   onClose: () => void
+  CommentsComponent?: React.ComponentType<React.ComponentProps<typeof CommentsPanel>>
 }) {
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content)
@@ -194,7 +198,7 @@ export function NoteEditorModal({
           {/* Comments (not in trash) */}
           {!readOnly && (
             <div className="rounded-lg border border-border/60">
-              <CommentsPanel
+              <CommentsComponent
                 targetType="note"
                 targetId={note.id}
                 workspaceId={workspaceId}

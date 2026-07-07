@@ -3,7 +3,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { Database } from '@/types/database'
 
 // Public paths that don't require a session. Everything else needs auth.
-const PUBLIC_PREFIXES = ['/login', '/signup', '/auth']
+// `/demo` is the public, no-login sandbox — it lives outside the (app) group so
+// it never hits the DAL, and this keeps the proxy from redirecting it to /login.
+const PUBLIC_PREFIXES = ['/login', '/signup', '/auth', '/demo']
 
 function isPublic(pathname: string) {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
